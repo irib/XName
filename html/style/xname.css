@@ -43,6 +43,12 @@ td {
 	font-size: 11px
 }
 
+th {
+	font-family: Verdana, Arial, Helvetica, sans-serif; 
+	font-size: 11px;
+	text-align: left
+}
+
 .header  {  
 	margin-top: 0;
 	margin-left: 0;
@@ -81,7 +87,7 @@ td {
 }
 
 .linkcolor {
-	color=#555555
+	color: #0000dd
 }
 
 

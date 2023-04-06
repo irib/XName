@@ -1,14 +1,10 @@
 <?
-$title = "Contact";
-$content = 'For bugs regarding XName Software, contact us at <a
-href="mailto:bugs@xname.org" class="linkcolor">bugs@xname.org</a>.<br />
+$title = $l['str_contact_title'];
+$content = $l['str_contact_for_bugs_contact_us'] . '<br />
 ';
 print $html->box($title,$content);
 
-$title = "Contribute";
-$content = 'If you like this software, you can <a href="http://www.xname.org/contribute.php" 
-class="linkcolor">contribute !</a> and/or submit your patches (<a href="mailto:xname@xname.org">xname@xname.org</a>).<br />
-XName Software is under <a href="http://www.gnu.org/copyleft/gpl.html" class="linkcolor">GPL License</a>';
-
+$title = $l['str_contribute_title'];
+$content = $l['str_contribute_content'];
 print $html->box($title,$content);
 ?>

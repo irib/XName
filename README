@@ -9,11 +9,12 @@ parts can be run on different servers:
 - web frontend
 - name server with backend
 
-See INSTALL file for installation instructions
+See INSTALL file for installation instructions.
 See MIGRATE file for migration instructions from previous XName engine.
-See doc/RULES for submitting patches
-See doc/multiserver.txt for understanding how multiserver works
+See doc/RULES for submitting patches.
+See doc/multiserver.txt for understanding how multiserver works.
 See doc/MULTISERVERS to enable multiservers.
+See doc/dynamic-update.txt for dynamic update feature.
 
 Source code is free (under GPL, see LICENSE file) 
 
@@ -21,5 +22,6 @@ Download: http://www.xname.org/download/
 Demo: http://demo.xname.org
 Production: http://www.xname.org
 
-Contact: Yann Hirou <hirou@xname.org>
+Contact developpers: <xnamesoft-dev@xname.org>
+Contact project leader: <hirou@xname.org>
 

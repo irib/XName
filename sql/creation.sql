@@ -2,7 +2,7 @@ create database xnamedev;
 use xnamedev;
 
 CREATE TABLE dns_user (
-	id	int auto_increment unique,
+	id int auto_increment unique,
 	login varchar(255) NOT NULL,
 	email varchar(255) NOT NULL,
 	soamail varchar(255) NULL,
@@ -12,6 +12,10 @@ CREATE TABLE dns_user (
 	groupid int NOT NULL,
 	groupright enum('A','R','W') default 'W',
 	advanced enum('0','1') default '0',
+	ipv6 enum('0','1') default '0',
+	txtrecords enum('0','1') default '0',
+	nbrows int default '4',
+	lang varchar(2) default 'en',
 	KEY user_login (login),
 	KEY user_id(id),
 	KEY user_groupid (groupid)
@@ -25,6 +29,7 @@ CREATE TABLE dns_zone (
 	zonetype enum('P','S','B') NOT NULL,
 	status char(1) default '',
 	KEY zone_zone (zone,zonetype),
+	KEY index_zone (zone),
 	KEY zone_userid (userid),
 	KEY zone_status(status),
 	KEY zone_id (id)
@@ -86,7 +91,9 @@ CREATE TABLE dns_session (
 	sessionID varchar(255) NOT NULL,
 	userid int NOT NULL,
 	date timestamp(14) NOT NULL,
-	KEY session_id(sessionID)
+	KEY session_id(sessionID),
+	KEY session_date(date),
+	KEY index_userid(userid)
 );
 
 
@@ -98,10 +105,10 @@ CREATE TABLE dns_generate (
 
 CREATE TABLE dns_record (
 	zoneid int NOT NULL,
-	type enum('MX','NS','A','CNAME','DNAME','A6','AAAA','SUBNS') NOT NULL,
+	type enum('MX','NS','A','PTR','CNAME','DNAME','A6','AAAA','SUBNS','DELEGATE') NOT NULL,
 	val1 varchar(255) NULL,
 	val2 varchar(255) NOT NULL,
-	ttl varchar(255) NOT NULL default "default",
+	ttl varchar(255) NOT NULL default "-1",
 	KEY record_zoneid(zoneid),
 	KEY record_typeid(type)
 );
@@ -111,6 +118,7 @@ CREATE TABLE dns_recovery (
 	id varchar(255),
 	insertdate timestamp(14),
 	KEY recovery_userid(userid),
+	KEY recovery_insertdate(insertdate),
 	KEY recovery_sessionid(id)
 );
 
@@ -124,9 +132,11 @@ CREATE TABLE dns_waitingreply (
 );
 
 CREATE TABLE dns_server (
-	id	int auto_increment unique,
+	id int auto_increment unique,
 	servername varchar(255) NOT NULL,
 	serverip varchar(255) NOT NULL,
+	transferip varchar(255) NOT NULL,
+	mandatory bool default 1,
 	location varchar(255) NOT NULL,
 	adminid int NOT NULL,
 	maxzones int default '0',
@@ -148,3 +158,9 @@ CREATE TABLE dns_zonetoserver (
 	KEY zoneid_ztos(zoneid),
 	KEY serverid_ztos(serverid)
 );
+
+CREATE TABLE dns_admin (
+	userid int NOT NULL,
+	KEY admin_userid (userid)
+);
+

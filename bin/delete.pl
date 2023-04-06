@@ -12,6 +12,8 @@
 
 use DBI;
 use Time::localtime;
+use POSIX qw(strftime);
+
 
 # *****************************************************
 # Where am i run from
@@ -20,7 +22,20 @@ $XNAME_HOME = $1;
 
 require $XNAME_HOME . "config.pl";
 require $XNAME_HOME . "xname.inc";
-$LOG_PREFIX='XName-delete';
+# load all languages
+if(opendir(DIR,$XNAME_HOME . "strings")){
+        foreach(readdir(DIR)){
+                if(/^[^\.][^\.]$/){
+                        require $XNAME_HOME . "strings/" . $_ . "/strings.inc";
+                }
+        }
+        closedir(DIR);
+}else{
+        print "ERROR: no language available";
+}
+
+$LOG_PREFIX.=$str_log_delete_prefix{$SITE_DEFAULT_LANGUAGE};
+
 
 ########################################################################
 # STOP STOP STOP STOP STOP STOP STOP STOP STOP STOP STOP STOPS STOP STOP
@@ -67,63 +82,41 @@ if($sec < 10){
 
 $timetouse = $year . $mon . $mday . $hour . $min . $sec;
 
-$query = "SELECT userid
-			FROM dns_waitingreply
-			WHERE firstdate <= $timetouse
+$query = "SELECT w.userid,u.login
+			FROM dns_waitingreply w, dns_user u
+			WHERE firstdate <= $timetouse AND w.userid=u.id
 			";
 
-my $sth = $dbh->prepare($query);
-if(!$sth){
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-}
-if (!$sth->execute) {
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-}
-
+my $sth = dbexecute($query,$dbh,LOG);
 while (my $ref = $sth->fetchrow_hashref()) {
 # for each user, 
 	$userid = $ref->{'userid'};
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " Deleting user $userid\n";	
+	print LOG logtimestamp() . " " . $LOG_PREFIX . " " . 
+		sprintf($str_log_deleting_user_x{$SITE_DEFAULT_LANGUAGE},$userid . " / " . $ref->{'login'}) . "\n";	
 
 	# TODO send email to warn 
 	
-
+	# mark zones to be deleted !
+	$query = "UPDATE dns_zone set status='D' WHERE userid='" . $userid . "'";
+	my $sth2 = dbexecute($query,$dbh,LOG);
 	$query = "DELETE FROM dns_user WHERE id='" . $userid . "'";
-	my $sth2 = $dbh->prepare($query);
-	if(!$sth2){
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-	}
-	if (!$sth2->execute) {
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-	}
+	my $sth2 = dbexecute($query,$dbh,LOG);
 	$query = "DELETE FROM dns_waitingreply WHERE userid='" . $userid . "'";
-	my $sth2 = $dbh->prepare($query);
-	if(!$sth2){
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-	}
-	if (!$sth2->execute) {
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-	}
-
+	my $sth2 = dbexecute($query,$dbh,LOG);
 }
 
 $query = "SELECT zone,zonetype
 		FROM dns_zone WHERE status='D'";
 
-my $sth = $dbh->prepare($query);
-if(!$sth){
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-}
-if (!$sth->execute) {
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-}
+	$sth = dbexecute($query,$dbh,LOG);
 
 @todelete=();
 while (my $ref = $sth->fetchrow_hashref()) {
 # for each zone, 
 	$zonename = $ref->{'zone'};
 	$zonetype = $ref->{'zonetype'};
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " Deleting zone $zonename\n";	
+	print LOG logtimestamp() . " " . $LOG_PREFIX . " " . 
+			sprintf($str_log_deleting_zone_x{$SITE_DEFAULT_LANGUAGE},$zonename) . "\n";	
 
 	# Delete $NAMED_DATA_DIR/masters|slaves
 	if($zonetype eq "P"){
@@ -138,14 +131,29 @@ while (my $ref = $sth->fetchrow_hashref()) {
 
 # delete from DB
 while(<@todelete>){
+	# delete from dns_conf* dns_log dns_record if not already done
+	$query = "SELECT id,zonetype FROM dns_zone WHERE zone='" . $_ . "'";
+ 	my $sth = dbexecute($query,$dbh,LOG);
+	my $ref = $sth->fetchrow_hashref();
+	$query = "DELETE FROM dns_conf";
+	if($ref->{'zonetype'} == 'P'){
+		$query .= "primary";
+	}else{
+		$query .= "secondary";
+	}
+	$query .= " WHERE zoneid='" . $ref->{'id'} . "'";
+ 	my $sth = dbexecute($query,$dbh,LOG);
+
+	$query = "DELETE FROM dns_log WHERE  zoneid='" . $ref->{'id'} . "'";
+        my $sth = dbexecute($query,$dbh,LOG);
+
+	if($ref->{'zonetype'} == 'P'){
+		$query = "DELETE FROM dns_record WHERE  zoneid='" . $ref->{'id'} . "'";
+	        my $sth = dbexecute($query,$dbh,LOG);
+	}
+
 	$query = "DELETE from dns_zone WHERE zone='" . $_ . "'";
-	my $sth = $dbh->prepare($query);
-	if(!$sth){
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-	}
-	if (!$sth->execute) {
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-	}
+ 	my $sth = dbexecute($query,$dbh,LOG);
 }
 
 close LOG;

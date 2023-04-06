@@ -33,7 +33,12 @@ class User {
 	var $userid;
 	var $grouprights;
 	var $advanced;
-
+	var $ipv6;
+	var $txtrecords;
+	var $nbrows;
+	var $lang;
+	var $isadmin;
+	
 	// Instanciation
 	// if $login or $idsession, match against DB
 	// to log in. fill in $authenticated, generate $idsession
@@ -53,9 +58,10 @@ class User {
 		$this->valid=0;
 		$this->userid=0;
 		$this->grouprights="";
+		$this->isadmin=0;
 		$this->cleanId('dns_session','date');
 		$this->cleanId('dns_recovery','insertdate');
-		global $db;
+		global $db,$l;
 		
 		if(notnull($login)){
 			if($this->Login($login,$password)){
@@ -63,7 +69,7 @@ class User {
 				// generate ID
 				$id = $this->generateIDSession();
 				if($db->error()){
-					$this->error="Trouble with DB";
+					$this->error=$l['str_trouble_with_db'];
 					return 0;
 				}
 				$this->authenticated=1;
@@ -75,7 +81,7 @@ class User {
 				$this->userid . "')";
 				$res = $db->query($query);
 				if($db->error()){
-					$this->error="Trouble with DB";
+					$this->error=$l['str_trouble_with_db'];
 					return 0;
 				}
 				$this->idsession=$id;
@@ -84,7 +90,7 @@ class User {
 					return 0;
 				}else{
 					// No authentication
-					$this->error="Bad Login";
+					$this->error=$l['str_bad_login_name'];
 					return 0;
 				}
 			}
@@ -96,11 +102,6 @@ class User {
 				if(notnull($this->error)){
 					return 0;
 				}
-				// reinitialize date in DB 
-				// to allow browsing user more than 30 mn... 
-				$query = "UPDATE dns_session SET userid='" . $this->userid . "'
-				WHERE sessionID='" . $sessionID . "'";
-				$db->query($query);
 				$this->authenticated=1;
 
 				// retrieve username
@@ -108,7 +109,7 @@ class User {
 				id='" . $this->userid . "'";
 				$res = $db->query($query);
 				if($db->error()){
-					$this->error="Trouble with DB";
+					$this->error=$l['str_trouble_with_db'];
 					return 0;
 				}
 				$line = $db->fetch_row($res);
@@ -122,7 +123,7 @@ class User {
 		} // end else if not null login 
 
 		// retrieve advanced param
-		if(!$this->RetrieveAdvanced()){
+		if(!$this->RetrieveFlags()){
 			return 0;
 		}
 		
@@ -140,15 +141,17 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	function cleanId($table,$fieldname){
-		global $db;
+		global $db,$l;
 		
 		$this->error="";
-		$date = nowDate() - (30*60);
+		$date = dateToTimestamp(nowDate());
+		$date -= 30*60;
+		$date = timestampToDate($date);
 		$query = "DELETE FROM " . $table  . " WHERE
-		" . $fieldname . " < '" . $date . "'";
+		" . $fieldname . " < " . $date;
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		return 1;	
@@ -165,14 +168,14 @@ class User {
 	 *@return int 0 if error, else return 1
 	 */
 	Function checkidsession($idsession){
-		global $db;
+		global $db,$l;
 		
 		$query = "SELECT userid,date FROM dns_session
 		WHERE sessionID='" . $idsession . "'";
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		$date = $line[1];
@@ -183,32 +186,23 @@ class User {
 			if(diffDate($date) > 30*60){
 
 				// session expired
-				$this->error="Session expired";
 				// delete session 
 				$query = "DELETE FROM dns_session WHERE sessionID='" .
 				$idsession . "'";
 				$db->query($query);
+				$this->error=$l['str_session_expired'];
 				return 0;	
 			}
 			
-			$year = strftime("%Y");
-			$month = strftime("%m");
-	
-			$day = strftime("%d");
-			$hour = strftime("%H");
-			$min = strftime("%M");
-			$sec = strftime("%S");
-			$now=$year.$month.$day.$hour.$min.$sec;
-	
 			// update DB with new date
-			$query = "UPDATE dns_session SET date='" . $now . "'
+			$query = "UPDATE dns_session SET date=now()
 			WHERE sessionID='" . $idsession . "'";
 			$db->query($query);
 			
 			$this->userid=$line[0];
 			$this->idsession=$idsession;
 		}else{ // date empty == no such id in DB
-			$this->error="Session expired";
+			$this->error=$l['str_session_expired'];
 			return 0;	
 		}	
 		return 1;
@@ -229,15 +223,14 @@ class User {
 	 *@return int 1 if success, 0 if error or not present
 	 */
 	Function Login($login,$password){
-		global $db;
+		global $db,$l;
 		
 		$this->error="";
 		if(!$this->Exists($login)){
 			return 0;
 		}else{
 			if(!$this->valid($login)){
-				$this->error="Login already exists, but email address has not
-				 been validated by user";			
+				$this->error=$l['str_login_not_activated'];			
 				return 0;
 			}else{
 				$password = md5($password);
@@ -246,7 +239,7 @@ class User {
 				$res = $db->query($query);
 				$line = $db->fetch_row($res);
 				if($db->error()){
-					$this->error="Trouble with DB";
+					$this->error=$l['str_trouble_with_db'];
 					return 0;
 				}
 		
@@ -272,14 +265,14 @@ class User {
 	 *@return int 1 if present, 0 else - or on error
 	 */
 	Function Exists($login){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$query = "SELECT count(*) FROM dns_user WHERE
 			login='$login'";
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		return $line[0];
@@ -294,14 +287,14 @@ class User {
 	 *@return int 1 if valid, 0 else
 	 */
 	Function Valid($login){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$query = "SELECT count(*) FROM dns_user 
 					WHERE login='" . $login . "' AND valid='1'";
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		$this->valid=$line[0];
@@ -317,7 +310,7 @@ class User {
 	 *@return string ID
 	 */
 	Function generateIDSession (){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$result = randomID();
 		
@@ -327,7 +320,7 @@ class User {
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		if($line[0] != 0){
@@ -349,14 +342,14 @@ class User {
 	 *@return int 1 if success, 0 if error 
 	 */
 	Function logout($idsession){
-		global $db;
+		global $db,$l;
 		if($idsession==0){
 			$idsession=$this->idsession;
 		}
 		$query = "DELETE FROM dns_session WHERE sessionID='" . $idsession . "'";
 		$res=$db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		$this->authenticated=0;
@@ -378,7 +371,7 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function userCreate($login,$password,$email){
-		global $db;
+		global $db,$l;
 		global $config;
 		$this->error="";
 		// check if already exists or not
@@ -396,7 +389,7 @@ class User {
 				}
 				$res = $db->query($query);
 				if($db->error()){
-					$this->error = "Trouble with DB";
+					$this->error = $l['str_trouble_with_db'];
 					return 0;
 				}else{
 					$query = "SELECT id FROM dns_user WHERE login='" . $login .
@@ -404,7 +397,7 @@ class User {
 					$res = $db->query($query);
 					$line = $db->fetch_row($res);
 					if($db->error()){
-						$this->error = "Trouble with DB";
+						$this->error = $l['str_trouble_with_db'];
 						return 0;
 					}else{
 						$this->userid=$line[0];	
@@ -414,7 +407,7 @@ class User {
 							"'";
 							$res = $db->query($query);
 							if($db->error()){
-								$this->error = "Trouble with DB";
+								$this->error = $l['str_trouble_with_db'];
 								return 0;
 							}							
 						}
@@ -423,7 +416,7 @@ class User {
 				}
 			}
 		}else{
-			$this->error="Login already exists";
+			$this->error=$l['str_login_already_exists'];
 			return 0;
 		}
 	}
@@ -438,13 +431,13 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function changeLogin($login){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$query = "UPDATE dns_user SET login='" . $login . "' 
 		WHERE id='" . $this->userid . "'";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error = "Trouble with DB";
+			$this->error = $l['str_trouble_with_db'];
 			return 0;
 		}		
 		return 1;
@@ -459,14 +452,14 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function updatePassword($password){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$password = md5($password);
 		$query = "UPDATE dns_user SET password='" . $password . "'
 		WHERE id='" . $this->userid . "'";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error = "Trouble with DB";
+			$this->error = $l['str_trouble_with_db'];
 			return 0;
 		}else{
 			return 1;
@@ -481,15 +474,15 @@ class User {
 	 *@return array array of all zones/zonestypes owned by user or 0 if error
 	 */	
 	Function listallzones(){
-		global $db;
+		global $db,$l;
 		// warning: be sure to validate user before using this function
 		$this->error="";
 
-		$query = "SELECT zone, zonetype FROM dns_zone
-		WHERE userid='" . $this->userid . "' AND status!='D'";
+		$query = "SELECT zone, zonetype, id FROM dns_zone
+		WHERE userid='" . $this->userid . "' AND status!='D' ORDER BY zone DESC";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			$result = array();
@@ -508,7 +501,7 @@ class User {
 	 *@return string email address or 0 if error
 	 */
 	Function Retrievemail(){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		if(notnull($this->email)){
 			return $this->email;
@@ -519,7 +512,7 @@ class User {
 		$res=$db->query($query);
 		$line=$db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			$this->email=$line[0];
@@ -538,7 +531,7 @@ class User {
 	 *@return string email address or 0 if error
 	 */
 	Function getEmail($login){
-		global $db;
+		global $db,$l;
 		$this->error='';
 
 		$query = "SELECT email FROM dns_user 
@@ -547,7 +540,7 @@ class User {
 		$res=$db->query($query);
 		$line=$db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			return $line[0];
@@ -563,13 +556,13 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function Changemail($email){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$query = "UPDATE dns_user SET email='" . $email . "',
 		valid='0' WHERE id='" . $this->userid . "'";
 		$res=$db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			return 1;
@@ -577,47 +570,70 @@ class User {
 	}
 
 
-// Function RetrieveAdvanced()
+// Function RetrieveFlags()
 	/**
-	 * Returns advanced flag for current user. 
+	 * Returns flags for current user. 
 	 *
 	 *@access private
 	 *@return int 0 if error, 1 if success
 	 */
-	 Function RetrieveAdvanced(){
-	 	global $db;
+	 Function RetrieveFlags(){
+	 	global $db,$l;
 	 	$this->error="";
-		$query = "SELECT advanced FROM dns_user
+		$query = "SELECT advanced,ipv6,txtrecords,nbrows,lang FROM dns_user
 					WHERE id='" . $this->userid . "'";
 					
-		$res=$db->query($query);
+		$res=$db->query($query,1);
 		$line=$db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			$this->advanced=$line[0];
-			return 1;
+			$this->ipv6=$line[1];
+			$this->txtrecords=$line[2];
+			$this->nbrows=$line[3];
+			$this->lang=$line[4];
+			// check if admin
+			$query = "SELECT count(*) from dns_admin where userid='" . $this->userid . "'";
+			$res=$db->query($query,1);
+                	$line=$db->fetch_row($res);
+			if($db->error()){
+	                        $this->error=$l['str_trouble_with_db'];
+        	                return 0;
+                	}else{
+				if($line[0]){
+					$this->isadmin = 1;
+				}
+				return 1;
+			}
 		}
 	 }
 	 
-// Function changeAdvanced($param)
+// Function changeFlags($param)
 	/**
-	 * Change advanced parameter for current user, to let him
-	 * access or not to advanced interface
+	 * Change Flags parameters for current user
 	 *
 	 *@access public
-	 *@param $param int flag to be set (0 or 1)
+	 *@param $advanced int flag to be set (0 or 1)
+	 *@param $ipv6 int flag to be set (0 or 1)
+	 *@param $txtrecords int flag to be set (0 or 1)
+	 *@param $nbrows int number of raw to be printed
+	 *@param $lang string language to be used for this user	 
 	 *@return int 1 if success, 0 if error
 	 */
-	Function changeAdvanced($param){
-		global $db;
+	Function changeFlags($advanced,$ipv6,$txtrecords,$nbrows,$lang){
+		global $db,$l;
 		$this->error="";
-		$query = "UPDATE dns_user SET advanced='" . $param . "'
-		WHERE id='" . $this->userid . "'";
+		$query = "UPDATE dns_user SET advanced='" . $advanced . "',
+						ipv6='" . $ipv6 . "',
+						txtrecords='" . $txtrecords . "',
+						nbrows='" . $nbrows . "',
+						lang='" . $lang . "'
+						WHERE id='" . $this->userid . "'";
 		$res=$db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			$this->advanced=1;
@@ -635,7 +651,7 @@ class User {
 	 *@return string current password or 0 if error
 	 */	 
 	Function Retrievepassword(){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		if(notnull($this->password)){
 			return $this->password;
@@ -646,7 +662,7 @@ class User {
 		$res=$db->query($query);
 		$line=$db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			$this->password=$line[0];
@@ -663,7 +679,7 @@ class User {
 	 *@return string ID generated or 0 if error
 	 */
 	Function generateIDEmail(){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$result = randomID();
 		
@@ -673,7 +689,7 @@ class User {
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		if($line[0] != 0){
@@ -693,7 +709,7 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function storeIDEmail($userid,$email,$id){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		// check if present or not !
 		$query = "DELETE FROM dns_waitingreply WHERE userid='" . $userid . "'";
@@ -703,7 +719,7 @@ class User {
 		VALUES ('" . $userid . "','" . $email . "','" . $id . "')";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		return 1;
@@ -719,7 +735,7 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function validateIDEmail($id){
-		global $db;
+		global $db,$l;
 		// TODO : valid for limited time
 		$this->error="";
 		$query = "SELECT userid FROM dns_waitingreply 
@@ -727,11 +743,11 @@ class User {
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		if(!notnull($line[0])){
-			$this->error="No such ID";
+			$this->error=$l['str_no_such_id'] ;
 			return 0;
 		}
 		$userid = $line[0];
@@ -740,7 +756,7 @@ class User {
 		userid='" . $userid . "'";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		// update & set dns_user.valid to 1
@@ -748,7 +764,7 @@ class User {
 		id='" . $userid . "'";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		return 1;
@@ -763,7 +779,7 @@ class User {
 	 *@return string ID if success, 0 if error
 	 */
 	Function generateIDRecovery(){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$result = randomID();
 		
@@ -773,7 +789,7 @@ class User {
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		if($line[0] != 0){
@@ -794,14 +810,14 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function storeIDRecovery($login,$id){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		// retrieve user ID
 		$query = "SELECT id FROM dns_user WHERE login='" . $login . "'";
 		$res = $db->query($query);
 		$line=$db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		$userid = $line[0];
@@ -810,14 +826,14 @@ class User {
 		$query = "DELETE FROM dns_recovery WHERE userid='" . $userid . "'";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}		
 		$query = "INSERT INTO dns_recovery (userid,id) 
 		VALUES ('" . $userid . "','" . $id . "')";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		return 1;
@@ -834,7 +850,7 @@ class User {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function validateIDRecovery($id){
-		global $db;
+		global $db,$l;
 		// TODO : valid for limited time
 		$this->error="";
 		$query = "SELECT userid FROM dns_recovery 
@@ -842,11 +858,11 @@ class User {
 		$res = $db->query($query);
 		$line = $db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		if(!notnull($line[0])){
-			$this->error="No such ID";
+			$this->error=$l['str_no_such_id'];
 			return 0;
 		}
 		$userid = $line[0];
@@ -855,7 +871,7 @@ class User {
 		userid='" . $userid . "'";
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		$this->userid=$userid;
@@ -873,7 +889,7 @@ class User {
 	 *@return string login or 0 if error
 	 */
 	Function RetrieveLogin($id){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$query = "SELECT login FROM dns_user 
 		WHERE id='" . $id . "'";
@@ -881,7 +897,7 @@ class User {
 		$res=$db->query($query);
 		$line=$db->fetch_row($res);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			return $line[0];
@@ -897,12 +913,12 @@ class User {
 	 *@return int 1 if success, 0 if fail
 	 */
 	Function deleteUser(){
-		global $db;
+		global $db,$l;
 		$this->error="";
 		$query = "DELETE FROM dns_user WHERE id='" . $this->userid . "'";
 		$res=$db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}else{
 			$this->logout();
@@ -942,5 +958,6 @@ class User {
                 }
 		return $pass;
 	}
+
 }
 ?>

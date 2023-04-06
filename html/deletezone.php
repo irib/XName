@@ -15,6 +15,7 @@
 // - void
 // - zonename,zonetype
 
+$page_title = "str_delete_zone_title";
 // headers 
 include 'includes/header.php';
 
@@ -33,12 +34,11 @@ if(isset($zonetype)){
 	$zonetype=addslashes($zonetype);
 }
 
-// zone numbers
-include 'includes/currentzones.php';
-
-// login & logs
-include 'includes/login.php';
-
+if(file_exists("includes/left_side.php")) {
+        include "includes/left_side.php";
+}else{
+        include "includes/left_side_default.php";
+}
 
 
 // end left column
@@ -52,17 +52,17 @@ print $html->globaltablemiddle();
 
 // main content
 
-$title='Delete zone';
+$title=$l['str_delete_zone_title'];
 
 if($user->authenticated == 0){
-	$content = 'you must log in before deleting zone.
-	';
+	$content = $l['str_must_log_before_deleting_zone'];
 }else{
 	if($config->usergroups && ($usergrouprights == 'R')){ 
 	// if usergroups, zone is owned by
 	// group and current user has no creation rights
-		$content = '<font color="red">Error: You are not allowed
-		by your group administrator to create/write/delete zones.</font>';
+		$content = $html->generic_error . 
+			$l['str_not_allowed_by_group_admin_to_create_write_zones'] . 
+			$html->generic_error_end;
 	}else{
 	
 		if(!isset($zonename)){
@@ -76,10 +76,11 @@ if($user->authenticated == 0){
 
 		
 			if(!notnull($user->error)){
-				$content =  '<div class="boxheader">choose a zone to delete</div>';
+				$content =  '<div class="boxheader">' .
+							$l['str_choose_a_zone_to_delete'] . '</div>';
 				while($otherzone= array_pop($allzones)){
-					$newzone = new Zone($otherzone[0],$otherzone[1]);
-					$content .= '<a href="'
+					$newzone = new Zone($otherzone[0],$otherzone[1],$otherzone[2]);
+					$content .= '<a href="' .  $_SERVER["PHP_SELF"] 
 					.$link.'&zonename=' . $newzone->zonename . '&zonetype=' .
 					$newzone->zonetype . '" class="linkcolor">' .
 					 $newzone->zonename . '</a> (' . $newzone->zonetype . ')<br />';
@@ -92,69 +93,68 @@ if($user->authenticated == 0){
 			$zone = new Zone($zonename,$zonetype);
 
 			if($zone->error){
-				$content = '<font color="red">Error: ' . $zone->error . '</font>';
+				$content = $html->generic_error . $zone->error . 
+							$html->generic_error_end;
 			}else{
 				if((!$config->usergroups &&
 					$zone->RetrieveUser() != $user->userid) ||
 					($config->usergroups && 
 					$zone->RetrieveUser() != $group->groupid)){
-					$content = '<font color="red">Error: you can not manage / delete zone ' 
-					. $zone->zonename . " (" . $zone->zonetype . ")</font>";
+					$content = $html->generic_error . 
+						sprintf($l['str_you_can_not_manage_delete_zone_x_x'],
+								$zone->zonename,$zone->zonetype) .
+								$html->generic_error_end;
 				}else{
 
 					if((isset($_REQUEST) && !isset($_REQUEST['confirm'])) ||
 						(!isset($_REQUEST) && !isset($confirm))){
 					// ==> print confirm screen
 						$content = '
-						<div class="boxheader">Confirmation</div>
-						Do you confirm you want to delete zone ' . $zone->zonename . '
-						(';
+						<div class="boxheader">' . $l['str_confirmation'] . '</div>';
 						if($zone->zonetype == 'P'){
-							$content .= 'Primary';
+							$tempzonetype = $l['str_primary'];
 						}else{
-							$content .= 'Secondary';
+							$tempzonetype = $l['str_secondary'];
 						}
-						$content .= ') from ' . $config->sitename . ' ?
+						$content .=
+							sprintf($l['str_do_you_confirm_zone_deletion_x_x_from_x'],
+							$zone->zonename,$tempzonetype,$config->sitename) . '
 					 	<div align="center">
-						<form action="' . $PHP_SELF . '" method="POST">
-						<input type="hidden" name="idsession" value="' . $user->idsession
-						. '">
+						<form action="' .  $_SERVER["PHP_SELF"] . '" method="POST">
+						' . $hiddenfields . '
 						<input type="hidden" name="zonename" value="' .
 						$zone->zonename . 
 						'">
 						<input type="hidden" name="zonetype" value="' . $zone->zonetype . 
 						'">
 						<input type="hidden" name="confirm" value="1">
-						<input type="submit" value="Yes, please delete '
-						 . $zone->zonename . 
-						'(';
+						<input type="submit" value="';
 						if($zone->zonetype == 'P'){
-							$content .= 'Primary';
+							$tempzonetype = $l['str_primary'];
 						}else{
-							$content .= 'Secondary';
+							$tempzonetype = $l['str_secondary'];
 						}
-						$content .= ') from ' . $config->sitename . '">
+						$content .= sprintf($l['str_yes_please_delete_x_x_from_x'],
+						$zone->zonename,$tempzonetype,$config->sitename) . '">
 						</form>
 						<form action="index.php">
-						<input type="hidden" name="idsession" value="' . $user->idsession
-						. '">
-						<input type="submit" value="No, do not delete"></form>
+						' . $hiddenfields . '
+						<input type="submit" value="' . $l['str_no_dont_delete']. 
+						'"></form>
 						</div>
 						';
 					}else{ // not confirmed
 						// delete
 						// delete from dns_conf$zonetype, dns_log,
 						// dns_record
-						$error = 0;
-				
-						$content = 'Deleting '  . $zone->zonename . 
-							'(';
+						$localerror = 0;
 						if($zone->zonetype == 'P'){
-							$content .= 'Primary';
+							$tempzonetype = $l['str_primary'];
 						}else{
-							$content .= 'Secondary';
+							$tempzonetype = $l['str_secondary'];
 						}
-						$content .= ') from ' . $config->sitename . '...<br />';
+						$content = sprintf($l['str_deleting_x_x_x'],$zone->zonename,
+							$tempzonetype,$config->sitename) . '...<br />';
 						$query = "DELETE FROM dns_conf";
 						if($zone->zonetype == 'P'){
 							$query .= 'primary';
@@ -164,68 +164,74 @@ if($user->authenticated == 0){
 						 $query .= " WHERE zoneid='" . $zone->zoneid . "'";
 						$res = $db->query($query);
 						if($db->error()){
-							$error = 1;
-							$content .= '<font color="red">Error: Trouble with DB</font>';
+							$localerror = 1;
+							$content .= $html->generic_error .
+										$l['str_trouble_with_db'] .
+										$html->generic_error_end;
 						}
 						$query = "DELETE FROM dns_log WHERE zoneid='" . $zone->zoneid . "'";
 						$res = $db->query($query);
 						if($db->error()){
-							$error = 1;
-							$content .= '<font color="red">Error: Trouble with
-							DB</font>';
+							$localerror = 1;
+							$content .= $html->generic_error .
+										$l['str_trouble_with_db'] .
+										$html->generic_error_end;
 						}
 						if($zone->zonetype=='P'){
 							$query = "DELETE FROM dns_record WHERE zoneid='" . $zone->zoneid . "'";
 							$res = $db->query($query);
 							if($db->error()){
-								$error = 1;
-								$content .= '<font color="red">Error: Trouble with
-								DB</font>';
+								$localerror = 1;
+								$content .= $html->generic_error .
+											$l['str_trouble_with_db'] .
+											$html->generic_error_end;
 							}
 						}		
 						// log user action
 						if($config->usergroups){ 
 							if($config->userlogs){
-								if(!$error){
+								if(!$localerror){
 									$userlogs->addLogs($zone->zoneid,
-									"Deletion of " .
-									$zone->zonename . " (" .
-									$zone->zonetype . ").");
+									sprintf($l['str_log_deletion_of_x_x'],
+									$zone->zonename,
+									$zone->zonetype));
 								}else{
 									$userlogs->addLogs($currentzone->zoneid,
-									"Trouble during deletion of " .
-									$zone->zonename . " (" .
-									$zone->zonetype . 
-									"): Trouble with DB");
+									sprintf($l['str_trouble_during_deletion_of_x_x'],
+									$zone->zonename,$zone->zonetype) . " " . 
+									$l['str_trouble_with_db']);
 								}							
 								if($userlogs->error){
-									$content .= '<font color="red">Error logging action: '.$userlogs->error .
-									'</font>';
+									$content .= $html->generic_error . 
+										sprintf($l['str_logging_action_x'],$userlogs->error) .
+												$html->generic_error_end;
 								}
 							}
 						}
 
-						if(!$error){
+						if(!$localerror){
 						// flag as deleted in dns_zone 
 							$query = "UPDATE dns_zone SET status='D' WHERE 
 										id='" . $zone->zoneid . "'";
 							$res = $db->query($query);
 							if($db->error()){
-								$error = 1;
-								$content .= '<font color="red">Error: Trouble with
-								DB</font>'.
-								$query;
+								$localerror = 1;
+								$content .= $html->generic_error .
+											$l['str_trouble_with_db'] .
+											$html->generic_error_end;
 							}
 						}
 	
-						if($error){
+						if($localerror){
 
-							$content .= '<p>Errors occured during deletion. Please try 
-					again later.<br /> 
-					If problem persists, <a href="mailto:' . $config->contactemail . '">contact
-					us</a>.';
+							$content .= '<p>' . 
+								$l['str_errors_occured_during_deletion_plz_try_again']
+								. "<br />" . 
+								sprintf($l['str_if_problem_persists_x_contact_us_x'],
+									'<a href="mailto:' . 
+										$config->contactemail . '">','</a>');
 						}else{
-							$content .= 'Zone successfully deleted. ';
+							$content .= $l['str_zone_successfully_deleted'];
 						} 
 					} // end deletion confirmed
 				} // end retrieve user != userid (or groupid)
@@ -244,8 +250,11 @@ print $html->box($title,$content);
 print $html->globaltableright();
 // ********************************************************
 
-// contact 
-include 'includes/contact.php';
+if(file_exists("includes/right_side.php")) {
+        include "includes/right_side.php";
+}else{
+        include "includes/right_side_default.php";
+}
 
 // ********************************************************
 // MODIFY THIS TO CHANGE DESIGN

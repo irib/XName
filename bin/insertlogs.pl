@@ -12,6 +12,7 @@
 
 use DBI;
 use Time::localtime;
+use POSIX qw(strftime);
 use Date::Parse;
 
 # *****************************************************
@@ -22,7 +23,19 @@ $XNAME_HOME = $1;
 require $XNAME_HOME . "config.pl";
 require $XNAME_HOME . "xname.inc";
 
-$LOG_PREFIX='XName-insertlogs';
+# load all languages
+if(opendir(DIR,$XNAME_HOME . "strings")){
+        foreach(readdir(DIR)){
+                if(/^[^\.]*$/){
+                        require $XNAME_HOME . "strings/" . $_ . "/strings.inc";
+                }
+        }
+        closedir(DIR);
+}else{
+        print "ERROR: no language available";
+}
+
+$LOG_PREFIX.= $str_log_insertlogs_prefix{$SITE_DEFAULT_LANGUAGE};
 
 
 ########################################################################
@@ -66,171 +79,152 @@ open(LOG, ">>" . $LOG_FILE);
 
 # retrieve last parsed line
 $query = "SELECT line FROM dns_logparser";
-my $sth = $dbh->prepare($query);
-if(!$sth){
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-}
-if (!$sth->execute) {
-	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-}
+$sth = dbexecute($query,$dbh,LOG);
 $ref = $sth->fetchrow_hashref();
 $lastline = $ref->{'line'};
 
 
 # open file
-open(FILE, "< " . $SYSLOG_FILE) || die "Error opening $SYSLOG_FILE";
-# go to last parsed line
-if($lastline ne ""){
-	$currentline=<FILE>;
-	# compare currentline date and $lastline date
-	# Apr 14 04:25:44 unlimited
-	$currentline =~ /^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+/;
-	$currentlinedate=getTimestamp($1,$2,$3);
+if(-e($SYSLOG_FILE)){
+	open(FILE, "< " . $SYSLOG_FILE) || die sprintf($str_log_error_opening_x{$SITE_DEFAULT_LANGUAGE},$SYSLOG_FILE);
+	# go to last parsed line
+	if($lastline ne ""){
+		$currentline=<FILE>;
+		# compare currentline date and $lastline date
+		# Apr 14 04:25:44 unlimited
+		$currentline =~ /^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+/;
+		$currentlinedate=getTimestamp($1,$2,$3);
 
-	$lastline =~ /^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+/;
-	$lastlinedate=getTimestamp($1,$2,$3);
+		$lastline =~ /^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+/;
+		$lastlinedate=getTimestamp($1,$2,$3);
 
-	# if currentline date > lastline date, file has been rotated
-	if($currentlinedate < $lastlinedate){
-		while(<FILE> ne $lastline){
+		# if currentline date > lastline date, file has been rotated
+		if($currentlinedate < $lastlinedate){
+			while(<FILE> ne $lastline){
+			}
 		}
 	}
-}
-# if no line is read, don't save last read line !
-$readline = 0;
-
-while(<FILE>){
-	$readline++;
-	$line = $_;
-	my $status;
-	my $zonename;
-	my $content;
-	my $newcontent;
+	# if no line is read, don't save last read line !
+	$readline = 0;
 	
- 	if(/$LOG_PATTERN_NAMED$/){
-		# $1 : month
-		# $2 : day
-		# $3 : hour:min:sec
-		# $4 : content
-		my $content = $4;
-		# split line
-		my $timestamp = getTimestamp($1,$2,$3);
+	while(<FILE>){
+		$readline++;
+		$line = $_;
+		my $status;
+		my $zonename;
+		my $content;
+		my $newcontent;
 		
-		# retrieve zonename...
-		if($content =~ /$LOG_PATTERN_ZONE/){
-			$zonename = $2;
-		}else{
+	 	if(/$LOG_PATTERN_NAMED$/){
+			# $1 : month
+			# $2 : day
+			# $3 : hour:min:sec
+			if ($LOG_USE_NAMED_SEVERITY) {
+				$status = $4;
+				$content = $5;
+			} else {
+				$content = $4;
+			}
+	
+			# split line
+			my $timestamp = getTimestamp($1,$2,$3);
 		
-			if($content =~ /$LOG_PATTERN_FILE/){
+			# retrieve zonename...
+			if($content =~ /$LOG_PATTERN_ZONE/){
 				$zonename = $2;
-			}else{	
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Not matching : $content\n";
-			}
-		}
-		
-		# status : Error, Warning, Information
-		# remove zonename from matching words
-		$newcontent=$content;
-		$newcontent =~ s/$zonename/ /g;
-		if($newcontent =~ /(failed|failure|non-authoritative|denied|exceeded|expired)/){
-			$status = 'E';
-		}else{
-			if($newcontent =~ /(started|transfered|end of transfer|loaded|sending notifies)/){
-				$status = 'I';
 			}else{
-				$status = 'W';
+		
+				if($content =~ /$LOG_PATTERN_FILE/){
+					$zonename = $2;
+				}else{	
+					print LOG logtimestamp() . " " . $LOG_PREFIX . " : " . 
+						$str_log_not_matching{$SITE_DEFAULT_LANGUAGE} . " : $content\n";
+				}
 			}
-		}
 		
-		# insert in DB
-		# escape from mysql... 
-		$zonename =~ s/'/\\'/g;
-		$content =~ s/'/\\'/g;
-		$zonename =~ s/"/\\"/g;		
-		$content =~ s/"/\\"/g;
+			# status : Error, Warning, Information
+			if ($LOG_USE_NAMED_SEVERITY) {
+			$_ = $status;
+			$status = do {
+				if (/^info$/)
+					{ "I" }
+				elsif (/^warning$/)
+					{ "W" }
+				elsif (/^error$/)
+					{ "E" }
+				else
+					{ "U" }
+				};
+			} else {
+	
+				# remove zonename from matching words
+				$newcontent=$content;
+				$newcontent =~ s/$zonename/ /g;
+				if($newcontent =~ /(failed|failure|non-authoritative|denied|exceeded|expired)/){
+					$status = 'E';
+				}else{
+					if($newcontent =~ /(started|transferred|end of transfer|loaded|sending notifies)/){
+						$status = 'I';
+					}else{
+						$status = 'W';
+					}
+				}
+			}	
+			# insert in DB
+			# escape from mysql... 
+			$zonename =~ s/'/\\'/g;
+			$content =~ s/'/\\'/g;
+			$zonename =~ s/"/\\"/g;		
+			$content =~ s/"/\\"/g;
 		
-		# select zoneid
-		$query = "SELECT id FROM dns_zone WHERE zone='" . $zonename .
-		"'";
-		my $sth = $dbh->prepare($query);
-		if(!$sth){
-			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-		}
-		if (!$sth->execute) {
-			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-		}
-		$ref = $sth->fetchrow_hashref();
-		if(!$ref->{'id'}){
-			# check if zone exists with a "." at the end
+			# select zoneid
 			$query = "SELECT id FROM dns_zone WHERE zone='" . $zonename .
-			".'";
-			my $sth = $dbh->prepare($query);
-			if(!$sth){
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-			}
-			if (!$sth->execute) {
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-			}
+			"'";
+			$sth = dbexecute($query,$dbh,LOG);
 			$ref = $sth->fetchrow_hashref();
-			if($ref->{'id'}){
-		
+			if(!$ref->{'id'}){
+				# check if zone exists with a "." at the end
+				$query = "SELECT id FROM dns_zone WHERE zone='" . $zonename .
+				".'";
+				$sth = dbexecute($query,$dbh,LOG);
+				$ref = $sth->fetchrow_hashref();
+				if($ref->{'id'}){
+			
+					$query = "INSERT INTO dns_log (zoneid, date, content, status)
+					VALUES ('" . $ref->{'id'} . "','" . $timestamp . "','" . $content . 
+					"','" . $status . "')";
+
+					$sth = dbexecute($query,$dbh,LOG);
+				}
+			}else{
 				$query = "INSERT INTO dns_log (zoneid, date, content, status)
 				VALUES ('" . $ref->{'id'} . "','" . $timestamp . "','" . $content . 
 				"','" . $status . "')";
-
-				my $sth = $dbh->prepare($query);
-				if(!$sth){
-					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-				}
-				if (!$sth->execute) {
-					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-				}
+				$sth = dbexecute($query,$dbh,LOG);
 			}
-		}else{
-			$query = "INSERT INTO dns_log (zoneid, date, content, status)
-			VALUES ('" . $ref->{'id'} . "','" . $timestamp . "','" . $content . 
-			"','" . $status . "')";
-			my $sth = $dbh->prepare($query);
-			if(!$sth){
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-			}
-			if (!$sth->execute) {
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-			}
-		}
 		
-	}else{
-#		print "DONT MATCH : $_\n";
+		}else{
+	#		print "DONT MATCH : $_\n";
+		}
 	}
-}
-close(FILE);
+	close(FILE);
 
+	# save last line in DB
+	if($readline){
+		$line =~ s/'/\\'/g;
+		$line =~ s/"/\\"/g;
+		$query = "DELETE FROM dns_logparser where 1>0";
+		$sth = dbexecute($query,$dbh,LOG);
 
-# save last line in DB
-if($readline){
-	$line =~ s/'/\\'/g;
-	$line =~ s/"/\\"/g;
-	$query = "DELETE FROM dns_logparser where 1>0";
-	my $sth = $dbh->prepare($query);
-	if(!$sth){
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-	}
-	if (!$sth->execute) {
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+		$query = "INSERT INTO dns_logparser (line) values ('" . $line . "')";
+		$sth = dbexecute($query,$dbh,LOG);
 	}
 
-	$query = "INSERT INTO dns_logparser (line) values ('" . $line . "')";
-	my $sth = $dbh->prepare($query);
-	if(!$sth){
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-	}
-	if (!$sth->execute) {
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-	}
+}else{ # file don't exist
+	print LOG sprintf($str_log_error_opening_x{$SITE_DEFAULT_LANGUAGE},$SYSLOG_FILE);
 }
 
-
-deleteOldLogs(60*$LOG_HOURS_TO_KEEP,$LOG_NB_MIN_TO_KEEP);
+deleteOldLogs($LOG_HOURS_TO_KEEP,$LOG_NB_MIN_TO_KEEP);
 
 
 
@@ -247,66 +241,29 @@ close(LOG);
 
 
 sub deleteOldLogs(){
-	# delete logs older than $nbmins minutes
+	# delete logs older than $nbhours minutes
 	# if more than $nblogs log entries
-	$nbmins = @_[0];
+	$nbhours = @_[0];
 	$nblogs = @_[1];
-	$time = time();
-	
-	$timenew = $time - $nbmins*60;
-	
- 	@lt = localtime($timenew);
-	
-	$sec = $lt[0][0];
-	$min = $lt[0][1];
-	$hour = $lt[0][2];
-	$mday = $lt[0][3];
-	$mon = $lt[0][4];
-	
 
-	if($hour < 10){
-		$hour = "0" . $hour;
-	}
-	if($min < 10){
-		$min = "0" . $min;
-	}
-	if($sec < 10){
-		$sec = "0" . $sec;
-	}
-	$hourminsec = $hour . ":" . $min . ":" . $sec;
-	$month = $mon + 1;
-	$day = $mday;
-	
-
-	# count number of logs junger than $nbmins PER ZONE
+	# count number of logs younger than $nbhours PER ZONE
 	# if less than $nblogs, keep $nblogs-result and delete others
 
-	$timestamp = getTimestamp($month,$day,$hourminsec);
-
-
-	# retrieve all zones having logs.
-	$query = "SELECT zoneid FROM dns_log";
-	my $sth = $dbh->prepare($query);
-	if(!$sth){
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-	}
-	if (!$sth->execute) {
-		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
-	}	
+	# retrieve all zones having more than $nblogs logs.
+	$query = "SELECT zoneid,COUNT(*) as count FROM dns_log
+			GROUP BY zoneid HAVING count > " . $nblogs;
+	$sth = dbexecute($query,$dbh,LOG);
 	while(my $ref = $sth->fetchrow_hashref()){
 		$zoneid = $ref->{'zoneid'};
-		
+		$count = $ref->{'count'};
+	
 		# count logs younger than $timestamp
-		$query = "select count(*) as count FROM dns_log
-			WHERE date > " . $timestamp . " 
-			AND zoneid='" . $zoneid . "' ORDER BY date DESC";
-		my $sth2 = $dbh->prepare($query);
-		if(!$sth2){
-			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-		}
-		if (!$sth2->execute) {
-			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
-		}	
+		$query = "SELECT COUNT(*) AS count FROM dns_log
+			WHERE date > NOW() - INTERVAL " . $nbhours . " HOUR
+			AND zoneid='" . $zoneid . "'";
+
+		my $sth2 = dbexecute($query,$dbh,LOG);
+	
 		$ref2 = $sth2->fetchrow_hashref();
 		$nb = $ref2->{'count'};
 		$sth2->finish();
@@ -315,31 +272,16 @@ sub deleteOldLogs(){
 			# keep everyting until nblogs
 			# count total of logs 
 			# delete ascending until total - nblogs
-			$query = "SELECT count(*) as count FROM dns_log
-					WHERE zoneid='" . $zoneid . "'";
-			my $sth2 = $dbh->prepare($query);
-			if(!$sth2){
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-			}
-			if (!$sth2->execute) {
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
-			}	
-			$ref2 = $sth2->fetchrow_hashref();
-			$nbtotal = $ref2->{'count'};
-			$sth2->finish();
-			
-			if($nbtotal > $nblogs){
-				$nbtodelete = $nbtotal - $nblogs;
+			if($count > $nblogs){
+				$nbtodelete = $count - $nblogs;
 				$query = "DELETE FROM dns_log
 						WHERE zoneid='" . $zoneid . "'
 						LIMIT " . $nbtodelete;
-				my $sth2 = $dbh->prepare($query);
-				if(!$sth2){
-					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-				}
-				if (!$sth2->execute) {
-					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
-				}	
+				# XXX: one day, when all are mysql 4.x.x, add
+				# "ORDER BY date" to above query. By that time
+				# pray that this DELETE does not remove
+				# most recent records. :-(
+				my $sth2 = dbexecute($query,$dbh,LOG);
 				$sth2->finish();
 			}
 			
@@ -348,14 +290,10 @@ sub deleteOldLogs(){
 			# more than $nblogs will be not deleted => ok to delete all
 			# before timestamp
 			$query = "DELETE FROM dns_log WHERE
-			date < " . $timestamp . " AND zoneid='" . $zoneid . "'";
-			my $sth2 = $dbh->prepare($query);
-			if(!$sth2){
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
-			}
-			if (!$sth2->execute) {
-				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
-			}
+				date < NOW() - INTERVAL " . $nbhours . " HOUR
+				AND zoneid='" . $zoneid . "'";
+			my $sth2 = dbexecute($query,$dbh,LOG);
+
 		}
 
 	} # end while zoneid
@@ -377,21 +315,14 @@ sub getTimestamp(){
 	my $year;
 	
 	if(!($month =~ /[0123456789]/)){
-		$monthpart = getMonthNumber($month);
+		$monthpart = sprintf("%02d", getMonthNumber($month));
 	}else{
-		if($month < 10){
-			$monthpart = "0" . $month;
-		}else{
-			$monthpart = $month;
-		}
+		$monthpart = sprintf("%02d", $month);
 	}
-	if($day < 10){
-		$daypart = "0" . $day;
-	}else{
-		$daypart = $day;
-	}
+	$daypart = sprintf("%02d", $day);
 	
 	$timepart = $time;
+	$timepart =~ s/\.\d{3}$//g;
 	$timepart =~ s/://g;
 
 	# WARNING : what will happen 31/12 and 01/01 ?	
@@ -420,12 +351,7 @@ sub getMonthNumber(){
 	$i=1;
 	foreach(@months){
 		if($month eq $_){
-			if($i < 10){
-				$result = "0" . $i;
-			}else{
-				$result = $i;
-			}
-			return $result;
+			return $i;
 		}
 		$i++;
 	}

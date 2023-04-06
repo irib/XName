@@ -60,7 +60,7 @@ if(!$user->error && $user->authenticated==1){
 		$Wzones = 0;
 		$Ezones = 0;
 		while($otherzone= array_pop($allzones)){
-			$newzone = new Zone($db,$otherzone[0],$otherzone[1]);
+			$newzone = new Zone($otherzone[0],$otherzone[1],$otherzone[2]);
 			$status = $newzone->zonestatus();
 			switch($status) {
 				case 'I':

@@ -13,16 +13,20 @@
 	// validate email address, using $id.
 	// delete from  dns_waitingreply
 	
+$page_title="str_email_validation_title";
 // headers 
 include 'includes/header.php';
 
-// zone numbers
-include 'includes/currentzones.php';
+if(file_exists("includes/left_side.php")) {
+        include "includes/left_side.php";
+}else{
+        include "includes/left_side_default.php";
+}
 
 
 // ***************************************************
 
-$title = 'Email validation';
+$title = $l['str_email_validation_title'];
 
 if((isset($_REQUEST) && notnull($_REQUEST['id'])) || 
 	(!isset($_REQUEST) && notnull($id))){
@@ -31,14 +35,15 @@ if((isset($_REQUEST) && notnull($_REQUEST['id'])) ||
 	}
 	if($user->validateIDEmail($id)){
 	
-		$content = 'Your email is now flagged as valid.<br />
-		you can now log in on <a href="index.php">main page</a>.
-	';
+		$content = $l['str_email_flagged_valid'] . '<br />' .
+		sprintf($l['str_you_can_now_use_the_x_main_interface_x_to_log_in'],
+		'<a href="index.php?language=' . $lang . '">','</a>');
 	}else{
-		$content = 'An error occured: ' . $user->error ;
+		$content = $html->generic_error . $user->error .
+					$html->generic_error_end;
 	}
 }else{
-	$content = 'Wrong access method.';
+	$content = $l['str_wrong_access'];
 }
 
 // end left column
@@ -59,8 +64,11 @@ print $html->box($title,$content);
 print $html->globaltableright();
 // ********************************************************
 
-// contact 
-include 'includes/contact.php';
+if(file_exists("includes/right_side.php")) {
+        include "includes/right_side.php";
+}else{
+        include "includes/right_side_default.php";
+}
 
 
 // ********************************************************

@@ -21,6 +21,13 @@
  *@access public
  */
 Class Html{
+	var $fontred = ' <font color="red">';
+	var $fontend = '</font>';
+	var $generic_error = ' <font color="red">';
+	var $generic_error_end = '</font>';	
+	var $generic_warning = ' <font color="red">';
+	var $generic_warning_end = '</font><br />';	
+	var $tmp1, $tmp2;
 	/**
 	 * Class constructor
 	 *
@@ -28,6 +35,22 @@ Class Html{
 	 */
 	function Html(){
 		return $this;
+	}
+
+	function initialize(){
+		global $l;
+		$this->tmp1 = $this->generic_error;
+		$this->tmp2 = $this->generic_warning;
+		$this->generic_error .=  $l['str_error'] . ': ';
+		$this->generic_warning .= $l['str_warning'] . ': ';
+		return 1;
+	}
+
+	function reinitialize(){
+		global $l;
+		$this->generic_error = $this->tmp1 .  $l['str_error'] . ': ';
+		$this->generic_warning = $this->tmp2 . $l['str_warning'] . ': ';
+		return 1;
 	}
 
 	
@@ -41,13 +64,15 @@ Class Html{
 	 *@return string HTML code
 	 */
 	function header($title){
-	global $config;
+	global $config,
+		$l;
+	Header("Content-Type: text/html; charset=" . $l['str_content_type']);
 	$result ='
 	<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-15" />
-	<title>XName: ' . $title . '</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=' . $l['str_content_type'] . '" />
+	<title>' . $config->sitename . ' - ' . $title . '</title>
 	<link rel="stylesheet" type="text/css" href="' . $config->cssurl . '" />
 </head>
 <body bgcolor="#ffffff">
@@ -67,17 +92,26 @@ Class Html{
 	 *@return string HTML code
 	 */
 	function subheader($link){
+		global $lang,$config;
+		global $l;
 		$result = '<!-- header -->
 
 <table width="100%" border="0"  class="headtitle">
 		<tr class="headtitle"><td class="header">
-			<a href="index.php'.$link.'" class="linkcolor">XName DEMO</a>
+			<a href="index.php'.$link.'" class="linkcolor">' .
+			$config->sitename . '</a>
 		</td></tr>
 		<tr class="headtitle"><td class="linkline">
-		<a href="createzone.php'.$link.'" class="linkcolor">Create zone</a> |
-		<a href="modify.php'.$link.'" class="linkcolor">Modify zone</a> |
-		<a href="deletezone.php'.$link.'" class="linkcolor">Delete zone</a> |
-		<a href="http://www.xname.org" class="linkcolor"> Go on XName!</a>		
+		<a href="zones.php'.$link.'" class="linkcolor">' .
+		$l['str_html_view_zones'] . '</a> |
+		<a href="createzone.php'.$link.'" class="linkcolor">' .
+		$l['str_html_create_zone'] . '</a> |
+		<a href="modify.php'.$link.'" class="linkcolor">' .
+		$l['str_html_modify_zone'] . '</a> |
+		<a href="deletezone.php'.$link.'" class="linkcolor">' .
+		$l['str_html_delete_zone'] . '</a> |
+		<a href="' . $config->mainurl . '" class="linkcolor">' .
+		$l['str_html_go_on_xname'] . '!</a>		
 		</td></tr>
 		</table>
 		<!-- end header -->
@@ -160,8 +194,8 @@ Class Html{
 	 *@return string HTML code
 	 */
 	function footer(){
-	
-		$result = '
+		global $db;	
+		$result = "<p /> SQL:" . $db->totaltime . '
 
 </body>
 </html>
@@ -192,5 +226,6 @@ Class Html{
 		';
 		return $result;
 	}
+	
 }
 ?>

@@ -14,11 +14,15 @@
  
  // args : $id (in email), $account
 
+$page_title="str_password_recovery_title";
 // headers 
 include 'includes/header.php';
 
-// zone numbers
-include 'includes/currentzones.php';
+if(file_exists("includes/left_side.php")) {
+        include "includes/left_side.php";
+}else{
+        include "includes/left_side_default.php";
+}
 
 // end left column
 
@@ -30,31 +34,32 @@ print $html->globaltablemiddle();
 
 // main content
 
-$title = "Password recovery";
+$title = $l['str_password_recovery_title'];
 if((isset($_REQUEST) && !isset($_REQUEST['id']) && !isset($_REQUEST['account']))
 	|| (!isset($_REQUEST) && !isset($id) && !isset($account))){
-	$content = '
-	You have lost your password ? <br />
-	Fill in the following field, and an email will be sent to you,
-	containing a recovery-URL to visit.<p />
+	$content = $l['str_lost_pwd_fill_in_fields_to_recover_password'] . '<p />
 	
-	<form action="' . $PHP_SELF . '" method="post">
+	<form action="' .  $_SERVER["PHP_SELF"] . '" method="post">
+	<input type="hidden" name="language" value="' . $lang .'">
 	<table border="0">
-	<tr><td align="right">Login name:</td><td><input type="text" name="account"
+	<tr><td align="right">' . $l['str_login'] . '</td><td><input type="text" name="account"
 	/></td></tr>
-	<tr><td align="right"><b>or</b> one of your zone name:</td><td><input
-	type="text" name="zonename" /> <input type="radio" name="zonetype"
-	value="P">Primary <input type="radio" name="zonetype" value="S">Secondary</td></tr>
+	<tr><td align="right" valign="top">' . $l['str_or_one_of_your_zones']  . ':</td>
+		<td><input
+	type="text" name="zonename" /> <br /><input type="radio" name="zonetype"
+	value="P">' . $l['str_primary'] . 
+	' <input type="radio" name="zonetype" value="S">' . 
+	$l['str_secondary']	. '</td></tr>
 		<tr><td colspan="2" align="center"><input type="submit" 
-	value="Recover password" /></td></tr>
+	value="' . $l['str_recover_password_button'] . '" /></td></tr>
 	</table>
 	</form>';
 }else{
+	$content = '';
 	if((isset($_REQUEST) && (notnull($_REQUEST['account']) || 
 		notnull($_REQUEST['zonename']))) || 
 		(!isset($_REQUEST) && (notnull($account) || notnull($zonename)))){
-		$error = 0;
-		$content = '';
+		$localerror = 0;
 		if((isset($_REQUEST) && notnull($_REQUEST['zonename'])) ||
 			(!isset($_REQUEST) && notnull($zonename))){
 			if(isset($_REQUEST)){
@@ -64,9 +69,10 @@ if((isset($_REQUEST) && !isset($_REQUEST['id']) && !isset($_REQUEST['account']))
 			
 			if((isset($_REQUEST) && !notnull($_REQUEST['zonetype'])) ||
 				(!isset($_REQUEST) && !notnull($zonetype))){
-				$content = '<font color="red">Error: you did not specify
-				zone type</font>';
-				$error = 1;
+				$content .= $html->generic_error . 
+							$l['str_you_did_not_specify_zonetype'] .
+							$html->generic_error_end;
+				$localerror = 1;
 			}else{
 				if(isset($_REQUEST)){
 					$zonetype = $_REQUEST['zonetype'];
@@ -74,8 +80,9 @@ if((isset($_REQUEST) && !isset($_REQUEST['id']) && !isset($_REQUEST['account']))
 				$zonetype=addslashes($zonetype);
 				$zone=new Zone($zonename,$zonetype);
 				if(notnull($zone->error)){
-					$content = '<font color="red">Error: ' . $zone->error;
-					$error=1;
+					$content .= $html->generic_error . $zone->error .
+								$html->generic_error_end;
+					$localerror=1;
 				}else{
 					$userid = $zone->RetrieveUser();
 					$account = $user->RetrieveLogin($userid);
@@ -89,13 +96,15 @@ if((isset($_REQUEST) && !isset($_REQUEST['id']) && !isset($_REQUEST['account']))
 				}
 				$account = addslashes($account);
 				if(!$user->Exists($account)){
-					$error = 1;
-					$content .= '<font color="red">No such login name</font>';
+					$localerror = 1;
+					$content .= $html->generic_error . 
+								$l['str_bad_login_name'] . 
+								$html->generic_error_end;
 				}
 			}
 		}
 		
-		if(!$error){
+		if(!$localerror){
 			// generate sessionid
 			$id = $user->generateIDRecovery();
 			if($user->error){
@@ -103,45 +112,25 @@ if((isset($_REQUEST) && !isset($_REQUEST['id']) && !isset($_REQUEST['account']))
 			}else{
 				$user->storeIDRecovery($account,$id);
 				if($user->error){
-					$content .= '<font color="red">' . $user->error . '</font>';
+					$content .= $html->generic_error . $user->error . 
+								$html->generic_error_end;
 				}else{
 					// send email
-					$mailbody = '
-This is an automatic email.
-
-You have requested a password recovery for your account on ' . $config->sitename . '.
-
-Go on following temporary page, it will be given to you.
-warning : this page can be accessed only once.
-
-' . $config->mainurl . 'password.php?id=' . $id . '
-
--- 
-' . $config->emailsignature . '
-';
+					include ('includes/password_sendmail.php');
 					$email = $user->getEmail($account);
 					if(!$email){
-						$content .= '<font color="red">Error: your account
-						does not seems to have a valid email address.</font><br
-						/>';
-						$content .= 'Recovery mail not sent.';	
+						$content .=  $html->generic_error . 
+									$l['str_email_not_sent'] .  
+									$html->generic_error_end;
 					}else{
 						if(mailer($config->tousersource,$email,
-						$config->sitename . " password recovery","",$mailbody)){
-							$content .= '
-							Recorvery mail was successfully sent to your
-							email address. <br />
-							It contains an URL pointing to a page that will
-							reveal you your password.<p />
-							<b>WARNING: use this recovery URL as soon as
-							possible, as it is send to you in clear text.</b><br
-							/>
-							For security reasons, this URL can be used only
-							once.';
+						$config->sitename . " " . $l['str_password_recovery']
+									,"",$mailbody)){
+							$content .= $l['str_recovery_mail_sent'];
 						}else{
-							$content .= '<font color="red">Error: an error occured
-							sending you recovering email, try again
-							later.</font><br />';
+							$content .= $html->generic_error . 
+								$l['str_errors_occured_during_recovery_mail_sending'] . 
+							$html->generic_error_end . '<br />';
 						}
 					}
 				}
@@ -159,18 +148,18 @@ warning : this page can be accessed only once.
 					// id OK, validate
 					$password = $user->GenerateRandomPassword(8);
 					$user->updatePassword($password);
-					$content = '
-					Your login is: <div class="boxheader">' 
-					. $user->retrieveLogin($user->userid) . '</div><p />
-					Your password is: <div class="boxheader">' 
+					$content .= '
+					' . $l['str_password_recovery_login_is'] . 
+					': <div class="boxheader">' 
+					. $user->retrieveLogin($user->userid) . '</div><p />' .
+					$l['str_your_password_is'] . ': <div class="boxheader">' 
 					. $password . '</div><p />
-					You can now go on <a href="index.php">main page</a> 
-					and login';
+					' . sprintf($l['str_you_can_now_use_the_x_main_interface_x_to_log_in'],
+					'<a href="index.php">','</a>');
 					// reset user
 					$user->login="";
 				}else{
-					$content = 'Bad ID, maybe did you already use this recovery
-					URL';
+					$content .= $l['str_bad_password_id'];
 				}
 		}else{
 			if((isset($_REQUEST) && notnull($_REQUEST['zonename'])) ||
@@ -182,9 +171,10 @@ warning : this page can be accessed only once.
 				
 				if((isset($_REQUEST) && !notnull($_REQUEST['zonetype'])) || 
 					(!isset($_REQUEST) && !notnull($zonetype))){
-					$content = '<font color="red">Error: you did not specify
-					zone type</font>';
-					$error = 1;
+					$content .= $html->generic_error .
+								$l['str_you_did_not_specify_zonetype'] .
+								$html->generic_error_end;
+					$localerror = 1;
 				}else{
 					if(isset($_REQUEST)){
 						$zonetype=$_REQUEST['zonetype'];
@@ -192,16 +182,19 @@ warning : this page can be accessed only once.
 					$zonetype = addslashes($zonetype);
 					$zone=new Zone($zonename,$zonetype);
 					if(notnull($zone->error)){
-						$content = '<font color="red">Error: ' . $zone->error;
+						$content .= $html->generic_error . 
+									$zone->error.
+								 $html->generic_error_end;
 					}else{
 						$userid = $zone->RetrieveUser();
 					}
 				}
 			}else{
 				// nothing entered
-				$content = '<font color="red">Error: you did not enter login
-				name nor zone name</font>';
-				$error = 1;
+				$content .= $html->generic_error . 
+				 			$l['str_you_did_not_enter_login_nor_zonename'] .
+				 			$html->generic_error_end;
+				$localerror = 1;
 			}
 		}
 	}
@@ -217,8 +210,11 @@ print $html->box($title,$content);
 print $html->globaltableright();
 // ********************************************************
 
-// contact 
-include 'includes/contact.php';
+if(file_exists("includes/right_side.php")) {
+        include "includes/right_side.php";
+}else{
+        include "includes/right_side_default.php";
+}
 
 
 // ********************************************************

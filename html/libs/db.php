@@ -30,7 +30,10 @@
 class Db {
   var $dbh, $sh;
   var $result;
-  
+  var $lastquery;
+  var $cachecontent;
+  var $totaltime;
+
   /**
    * Class constructor. Connects to DB 
    *
@@ -39,6 +42,7 @@ class Db {
    */
   Function Db() {
   	global $config;
+	$this->totaltime=0;
     if($config->dbpersistent){
       $this->dbh = $this->pconnect($config->dbhost . ":" . $config->dbport, $config->dbuser, $config->dbpass, $config->dbname);
     }else{
@@ -86,8 +90,27 @@ class Db {
    *@param string $string QUERY 
    *@return object query handler
    */
-  Function query($string){
-    $this->result = mysql_query($string, $this->sh);
+  Function query($string,$cache = 0){
+	$string = preg_replace('/[\n\s\t]+?/',' ',$string);
+	$mtime = microtime();
+	$mtime = explode(" ",$mtime);
+	$mtime = $mtime[1] + $mtime[0];
+	$tstart = $mtime;
+	if($cache && $cachecontent[$string]){
+		$this->result = $cachecontent[$string];
+	}else{
+    		$this->result = mysql_query($string, $this->sh);
+	}
+	if($cache){
+		$cachecontent[$string] = $this->result;
+	}
+	$mtime = microtime();
+	$mtime = explode(" ",$mtime);
+	$mtime = $mtime[1] + $mtime[0];
+	$tend = $mtime;
+	$ttot = $tend - $tstart;
+	$this->lastquery = $string;
+	$this->totaltime+=$ttot;
     return $this->result;
   }
   
@@ -140,10 +163,11 @@ class Db {
    *@return int 1 if error, 0 else
    */
   Function error(){
-  	global $config;
+  	global $config,$l;
     if(mysql_errno()){
-      mailer($config->emailfrom,$config->emailto,'XName: Error
-	  MYSQL','',mysql_errno() . ": " . mysql_error() . "\n");
+      mailer($config->emailfrom,$config->emailto,$config->sitename . 
+	  $l['str_trouble_with_db'],'',mysql_errno() . ": " . mysql_error() . "\n"
+	  . $this->lastquery . "\n");
 	  return 1;
     }else{
 		return 0;

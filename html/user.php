@@ -11,15 +11,16 @@
 */
 
   // modify user parameters
-  
+
+$page_title="str_user_preferences";  
 // headers 
 include 'includes/header.php';
 
-// zone numbers
-include 'includes/currentzones.php';
-
-// login & logs
-include 'includes/login.php';
+if(file_exists("includes/left_side.php")) {
+        include "includes/left_side.php";
+}else{
+        include "includes/left_side_default.php";
+}
 
 
 // end left column
@@ -30,45 +31,47 @@ include 'includes/login.php';
 print $html->globaltablemiddle();
 // ********************************************************
 
-$title = "User Preferences";
+$title = $l['str_user_preferences'];
+$localerror=0;
 // main content
 if($user->authenticated != 1){
-	$content = "You must log in before editing user preferences";
+	$content = $l['str_must_log_before_editing_pref'];
 }else{
 	// print login, email, change password
 	// valid or not
-	if((isset($_REQUEST) && !$_REQUEST['modify']) ||
+	if((isset($_REQUEST) && !isset($_REQUEST['modify'])) ||
 		(!isset($_REQUEST) && !$modify)){
 		$content = '
-		<form action="' . $PHP_SELF . '" method="post">
+		<form action="' .  $_SERVER["PHP_SELF"] . '" method="post">
 		<input type="hidden" name="modify" value="1">
-		<input type="hidden" name="idsession" value="' . $user->idsession . '">
+		' . $hiddenfields . '
 		<table border="0" width="100%">
-		<tr><td align="right">login: </td><td><div class="boxheader">' . $user->login .
+		<tr><td align="right">' . $l['str_login'] . ': </td><td><div class="boxheader">' . $user->login .
 		'</div></td></tr>
-		<tr><td align="right">You can change your login:</td><td><input type="text"
+		<tr><td align="right">' . $l['str_you_can_change_your_login'] . ':</td><td><input type="text"
 		name="newlogin"></td></tr>
 		';
 		if(!$config->usergroups || $usergrouprights == 'A'){
-			$content .= '<tr><td colspan="2"><font color="red">warning:</font> changing your email address will
-			prevent you to log in until you have validated it. Be sure to provide
-			a <b>valid</b> email address or you will not be able to access your account
-			anymore.</td></tr>
-			<tr><td align="right">your <font color="red">valid</font> email:</td><td><input type=text name="email" value="' . 
+			$content .= '<tr><td colspan="2">' . 
+						$html->generic_warning . 
+						 $l['str_changing_email_warning'] . 
+						 $html->generic_warning_end . '</td></tr>
+			<tr><td align="right">' . $l['str_your_valid_email'] . ':</td><td><input type=text name="email" value="' . 
 			$user->Retrievemail() . '"></td></tr>
 			';
 		}
-		$content .= '<tr><td colspan="2">you need to type your current password only if you wish
-		to change it</td></tr>
-		<tr><td align="right">current password:</td><td><input type="password"
+		$content .= '<tr><td colspan="2">' . 
+			$l['str_type_your_password_to_change_it'] . '</td></tr>
+		<tr><td align="right">' . $l['str_current_password'] . ':</td><td><input type="password"
 		name="oldpass"></td></tr>
-		<tr><td align="right">new password:</td><td><input type="password"
+		<tr><td align="right">' . $l['str_new_password'] . ':</td><td><input type="password"
 		name="passnew"></td></tr>
-		<tr><td align="right">confirm password:</td><td><input type="password"
+		<tr><td align="right">' . $l['str_confirm_password'] . ':</td><td><input type="password"
 		name="confirmpassnew"></td></tr>
 		';
 		if($config->advancedinterface){
-			$content .= '<tr><td align="right">Advanced interface<br />(for SOA params, TTL, etc..)</td>
+			$content .= '<tr><td align="right">' . $l['str_advanced_interface']  . 
+			'<br />(' . $l['str_advanced_interface_details'] . ')</td>
 			<td><input type=checkbox name="advanced"';
 			if($user->advanced){
 				$content .= ' checked';
@@ -76,7 +79,51 @@ if($user->authenticated != 1){
 			$content .='></td></tr>
 			';
 		}
-		$content .= '<tr><td colspan="2" align="center"><input type="submit" value="Modify"></td></tr>
+		if($config->ipv6interface){
+			$content .= '<tr><td align="right">' . 
+			$l['str_ipv6_interface'] . '<br />(' . 
+			$l['str_ipv6_interface_details'] . ')</td>
+			<td><input type=checkbox name="ipv6"';
+			if($user->ipv6){
+				$content .= ' checked';
+			}
+			$content .='></td></tr>
+			';
+		}
+		if($config->txtrecords){
+			$content .= '<tr><td align="right">' . 
+			$l['str_txt_records'] . '<br />(' . 
+			$l['str_txt_records_details'] . ')</td>
+			<td><input type=checkbox name="txtrecords"';
+			if($user->txtrecords){
+				$content .= ' checked';
+			}
+			$content .='></td></tr>
+			';
+		}
+		
+		$content .= '<tr><td align="right">' . 
+		$l['str_number_of_rows_per_record'] . ':</td>
+		<td><input type=text name="nbrows" value="' . $user->nbrows . '" size="3"></td></tr>
+		';
+		
+		$content .= '<tr><td align="right">' . 
+					$l['str_language']  . ':</td>
+					<td><select name="newlang">';
+		// select current available langs
+		$list = GetDirList('includes/strings');
+		reset($list);
+		while($newlang = array_shift($list)){
+			if(!strcmp($newlang,$lang)){
+				$content .= '<option value="' . $lang . '" selected>' . $lang . '</option>';
+			}else{
+				$content .= '<option value="' . $newlang . '">' . $newlang . '</option>';			
+			}
+		}
+		
+		$content .= '</select></td></tr>
+		<tr><td colspan="2" align="center">
+		<input type="submit" value="' . $l['str_modify_button'] . '"></td></tr>
 		</table>
 		</form>
 		';
@@ -89,21 +136,26 @@ if($user->authenticated != 1){
 				$newlogin = $_REQUEST['newlogin'];
 			}
 			$newlogin=addslashes($newlogin);
-			$content .= 'Changing your login name... ';
+			$content .= $l['str_changing_login_name'] . '... ';
 			if(!checkName($newlogin)){
-				$error = 1;
-				$content .= '<font color="red">Error: bad login name</font><br />';
+				$localerror = 1;
+				$content .= $html->generic_error .  
+							$l['str_bad_login_name'] .
+							$html->generic_error_end . '<br />';
 			}else{
 				if($user->Exists($newlogin)){
-					$content .= '<font color="red">Error, login already exists</font><br />';
-					$error = 1;
+					$content .= $html->generic_error .
+								$l['str_login_already_exists'] . 
+								$html->generic_error_end . 
+								'<br />';
+					$localerror = 1;
 				}else{
 					if($user->changeLogin($newlogin)){
-						$content .= 'OK<br />';
+						$content .= $l['str_ok'] . '<br />';
 					}else{
-						$error = 1;
-						$content .= '<font color="red">Error: ' . $user->error .
-						'</font><br />';
+						$localerror = 1;
+						$content .= $html->generic_error . $user->error .
+						$html->generic_error_end . '<br />';
 					}
 				}
 			}
@@ -120,25 +172,27 @@ if($user->authenticated != 1){
 			if($email != $user->Retrievemail()){
 				// mail modified
 				// check & warn if bad
-				$content .= 'Modifying email... ';
+				$content .= $l['str_changing_email'] . '... ';
 				if(!checkEmail($email)){
-					$error = 1;
-					$content .= '<font color="red">Error: bad email syntax. Be careful,
-					dot \'.\' before the \'@\' is not allowed in DNS
-					configuration</font>
-					<br />';
+					$localerror = 1;
+					$content .= $html->generic_error .
+					 			$l['str_bad_email_syntax']  . 
+								$html->generic_error_end . '
+								<br />';
 				}else{
 					$result = vrfyEmail($email);
 					if($result != 1){
-						$error =1;
-						$content .= '<font color="red">Error:' . $result . '</font><br />';
+						$localerror =1;
+						$content .= $html->generic_error . $result . 
+									$html->generic_error_end . '<br />';
 					}
 				}
-				if(!$error){
+				if(!$localerror){
 					$email= addslashes($email);
 					if(!$user->changemail($email)){
-						$error = 1;
-						$content .= '<font color="red">Error:' . $user->error . '</font><br />';
+						$localerror = 1;
+						$content .= $html->generic_error . $user->error . 
+									$html->generic_error_end . '<br />';
 					}else{
 
 						// send email
@@ -149,25 +203,8 @@ if($user->authenticated != 1){
 			
 						// send mail
 
-						$mailbody = '
-This is an automatic email.
-
-You have modified your email address on ' . $config->sitename . '.
-This mail is send to you to validate your email address, ' . $email .'.
-
-Please go on 
-' . $config->mainurl . 'validate.php?id=' . $randomid . '
-
-Your account can not be used unless you have validated your email address.
-
-Regards,
-
--- 
-' . $config->emailsignature . '
-
-
-';
-
+						include('includes/user_sendmail.php');
+						
 						// insert ID in DB
 						if(!$user->storeIDEmail($user->userid,$email,$randomid)){
 							$content .= $user->error;
@@ -175,19 +212,16 @@ Regards,
 				
 							if(mailer($config->tousersource,$email, 
 								$config->sitename .
-								" email validation","",$mailbody)){
+								" " . $l['str_email_validation'],"",$mailbody)){
 
-								$content .= 'OK. <p />A mail was succesfully sent to you, to validate your
-								email address. Just follow embedded link to activate your
-								account again.<p />
+								$content .= $l['str_ok'] . '<p />' .
+								$l['str_email_validation_mail_sent'] . '<p />
 								';
 							}else{
-								$content .= 'An error occured when sending you an email.
-								Please verify that your email address ' .$email. ' is working
-								properly. In doubt, you can contact us at <a
-								href="mailto:' . $config->contactemail . '"
-								class="linkcolor">' . $config->contactemail . '</a>.
-								';
+								$content .= 
+								sprintf($l['str_email_validation_error_occured_plz_vrfy_that_x_is_working_x'],
+										$email,'<a	href="mailto:' . $config->contactemail . '"
+								class="linkcolor">' . $config->contactemail . '</a>');
 							}
 				
 						} // end storeIDEmail
@@ -199,16 +233,59 @@ Regards,
 		if($config->advancedinterface){
 			if((isset($_REQUEST) && $_REQUEST['advanced']) ||
 				(!isset($_REQUEST) && $advanced)){
-				 $user->changeAdvanced("1");
+				$advanced = 1;
 			}else{ 
-				$user->changeAdvanced("0");
+				$advanced = 0;
 			}
-		} // end advancedinterface set
+		}else{ // end advancedinterface set
+			$advanced = 0;
+		}
+			
+		if($config->ipv6interface){
+			if((isset($_REQUEST) && $_REQUEST['ipv6']) ||
+				(!isset($_REQUEST) && $ipv6)){
+				$ipv6 = 1;
+			}else{ 
+				$ipv6 = 0;
+			}
+		}else{ // end ipv6interface set
+			$ipv6=0;
+		}
+		if($config->txtrecords){
+			if((isset($_REQUEST) && $_REQUEST['txtrecords']) ||
+				(!isset($_REQUEST) && $txtrecords)){
+				$txtrecords = 1;
+			}else{ 
+				$txtrecords = 0;
+			}
+		}else{ // end ipv6interface set
+			$txtrecords=0;
+		}
+
+		if(isset($_REQUEST) && $_REQUEST['nbrows']){
+			$nbrows = addslashes($_REQUEST['nbrows']);
+		}else{
+			if(!isset($_REQUEST) && $nbrows){
+				// nothing to be done
+			}else{
+				$nbrows = $config->defaultnbrows;
+			}
+		}
+		if(isset($_REQUEST) && $_REQUEST['newlang']){
+			$newlang = addslashes($_REQUEST['newlang']);
+		}else{
+			if(!isset($_REQUEST) && $newlang){
+			// nothing to be done
+			}else{
+				$newlang = $config->defaultlang;
+			}
+		}
+		$user->changeFlags($advanced,$ipv6,$txtrecords,$nbrows,addslashes($newlang));
 		
-		if(!$error){
+		if(!$localerror){
 			if((isset($_REQUEST) && $_REQUEST['oldpass']) ||
 				(!isset($_REQUEST) && $oldpass)){
-				$content .= 'Modifying password... ';
+				$content .= $l['str_changing_password'] . '... ';
 				// check if old = current
 				if(isset($_REQUEST)){
 					$oldpass = $_REQUEST['oldpass'];
@@ -221,43 +298,43 @@ Regards,
 						$confirmpassnew = $_REQUEST['confirmpassnew'];
 					}
 					if($passnew != $confirmpassnew){
-						$error = 1;
-						$content .= '<font color="red">Error: new passwords do not
-						match.</font><br />';
+						$localerror = 1;
+						$content .= $html->generic_error . 
+						 			$l['str_new_passwords_dont_match'] .
+						 			$html->generic_error_end . '<br />';
 					}else{
 						// update user
 						$passnew = addslashes($passnew);
 						$user->UpdatePassword($passnew);
 						if(!$user->error){
-							$content .= 'OK<br />';
+							$content .= $l['str_ok'] . '<br />';
 						}
 					}
 				}else{
-					$error = 1;
-					$content .= '<font color="red">Error: bad current
-					password.</font></br />';
+					$localerror = 1;
+					$content .= $html->generic_error . 
+					 			$l['str_bad_current_password'] . 
+					 			$html->generic_error_end . '</br />';
 				}
 			}
 		} // end no error
 
 		if($user->error){
-			$error = 1;
-			$content .= '<font color="red">Error: ' . $user->error . '</font><br
-			/>';
+			$localerror = 1;
+			$content .= $html->generic_error . $user->error . 
+						$html->generic_error_end . '<br />';
 		}
 		
-		if($error){
+		if($localerror){
 			// rollback
-			$content .= 'Some errors occured, not all modification have been done.';
+			$content .= $l['str_some_errors_occured'];
 		}else{
-			$content .= 'Your parameters were successfully updated.';
+			$content .= $l['str_parameters_successfully_updated'];
 			if($email != $user->Retrievemail()){
-				$content .= '<br /><font color="red">warning</font> you have
-				changed your email address. An email has been sent to you to
-				validate your new email address. Unless you validate this email
-				address, you will not be able to log on anymore.<br />
-				If <b>' . $email . '</b> is not the right one, go back and modify
-				it before logging out.';
+				$content .= '<br />' . $html->generic_warning . 
+							$l['str_email_changed_warning'] . '<br />' . 
+							sprintf($l['str_if_x_is_not_the_right_one'],$email) . 
+							$html->generic_warning_end;
 			}
 		}
 	}
@@ -271,8 +348,11 @@ print $html->box($title,$content);
 print $html->globaltableright();
 // ********************************************************
 
-// contact 
-include 'includes/contact.php';
+if(file_exists("includes/right_side.php")) {
+        include "includes/right_side.php";
+}else{
+        include "includes/right_side_default.php";
+}
 
 // ********************************************************
 // MODIFY THIS TO CHANGE DESIGN

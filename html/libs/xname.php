@@ -18,6 +18,7 @@ include 'libs/zone.php';
 include 'libs/primary.php';
 include 'libs/secondary.php';
 
+
 // **********************************************************
 // Utilities 
 
@@ -142,6 +143,71 @@ function countPrimary(){
 	}
 }
 
+	/**
+	 * Return list of all server names
+	 *
+	 *@access public
+	 *@return array list of all server names or 0 if error
+	 */
+	Function GetListOfServerNames($mandatory = 0) {
+		global $db;
+
+		$query = "SELECT servername FROM dns_server";
+		if ($mandatory == 1)
+			$query .= " WHERE mandatory=1";
+		// $query .= " ORDER BY id DESC";
+		$res = $db->query($query);
+		if($db->error()){
+			return 0;
+		}
+		$result = array();
+		while($line = $db->fetch_row($res)){
+			array_push($result,$line[0]);
+		}
+		return $result;
+	}
+
+	/**
+	 * Return list of all server IPs
+	 *
+	 *@access public
+	 *@return array list of all server IPs or 0 if error
+	 */
+	Function GetListOfServerIPs() {
+		global $db;
+
+		$query = "SELECT serverip FROM dns_server";
+		$res = $db->query($query);
+		if($db->error()){
+			return 0;
+		}
+		$result = array();
+		while($line = $db->fetch_row($res)){
+			array_push($result,$line[0]);
+		}
+		return $result;
+	}
+
+	/**
+	 * Return list of all server transfer IPs
+	 *
+	 *@access public
+	 *@return array list of all server IPs for transfer or 0 if error
+	 */
+	Function GetListOfServerTransferIPs() {
+		global $db;
+
+		$query = "SELECT transferip FROM dns_server";
+		$res = $db->query($query);
+		if($db->error()){
+			return 0;
+		}
+		$result = array();
+		while($line = $db->fetch_row($res)){
+			array_push($result,$line[0]);
+		}
+		return $result;
+	}
 
 // **********************************************************
 // Availability of services
@@ -206,6 +272,38 @@ function checkIP($string){
 }
 
 
+// function checkIPv6($string)
+/**
+ * Check if IPv6 sounds good - hexa numbers separated by dots or :
+ *
+ *@param string $string IP address to check
+ *@return int 0 or 1 if bad or valid IPv6
+ */
+function checkIPv6($string){
+	if(preg_match("/\./",$string)){
+		if(preg_match("/[^a-f0-9\.]/i",$string)){
+			$result = 0;
+		}else{
+			$result = 1;
+		}
+	}else{
+		// 8 bytes
+		if(preg_match("/([a-f0-9]+)((:[a-f0-9]+){7})/i",$string)){
+			$result = 1;
+		}else{
+			// cf http://groups.google.com/groups?hl=en&lr=&ie=UTF-8&threadm=39889325.7F053765%40west.sun.com&rnum=1
+			if(preg_match("/:::|[A-F0-9]{5}|[^A-F0-9:]|^:[^:]|[^:]:$|.*:.*:.*:.*:.*:.*:.*:.*:.*|^::[^:]+::[^:]+::$|^::[^:]+::[^:]{0,4}$|^[^:]+::[^:]+::[^:]{0,4}$/i",$string)){
+				$result = 0;
+			}else{
+				$result = 1;
+			}
+		}
+	}
+
+	return $result;
+}
+
+
 // function checkDomain($string)
 /**
  * Check if  name has only valid char, without dot as 1st char
@@ -235,8 +333,8 @@ function checkDomain($string){
  */
 function checkZone($string){
 	$string = strtolower($string);
-	// only specified char AND only one . (no sub-zones)
-	if((strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-.") !=
+	// only specified char
+	if((strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-./") !=
 	strlen($string)) || (strpos('0'.$string,".") == FALSE)||
 	(strpos('0'.$string,".") == 1) || !preg_match("/[a-z]$/i",$string)){
 		$result = 0;
@@ -246,6 +344,25 @@ function checkZone($string){
 	return $result;
 }
 
+// function checkZoneWithDot($string)
+/**
+ * Check if zone name has only valid char, without dot as 1st char
+ * Zone name must have only [a-z] char at the end AND ".".
+ *@param string $string zone name to be checked
+ *@return int 1 if valid, 0 else
+ */
+function checkZoneWithDot($string){
+	$string = strtolower($string);
+	// only specified char
+	if((strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-.") !=
+	strlen($string)) || (strpos('0'.$string,".") == FALSE)||
+	(strpos('0'.$string,".") == 1) || !preg_match("/[a-z]\.$/i",$string)){
+		$result = 0;
+	}else{
+		$result = 1;
+	}
+	return $result;
+}
 
 // function checkName($string)
 /**
@@ -257,8 +374,46 @@ function checkZone($string){
 function checkName($string){
 	$string = strtolower($string);
 	// only specified char 
-	if(strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-*") !=
+	if(strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-") !=
 	strlen($string)){
+		$result = 0;
+	}else{
+		$result = 1;
+	}
+	return $result;
+}
+
+// function checkCName($string)
+/**
+ * Check if cname has only valid char
+ *
+ *@param string $string name to be checked
+ *@return int 1 if valid, 0 else
+ */
+function checkCName($string){
+	$string = strtolower($string);
+	// only specified char 
+	if(strcmp($string,"*") && (strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-.") !=
+	strlen($string))){
+		$result = 0;
+	}else{
+		$result = 1;
+	}
+	return $result;
+}
+
+// function checkAName($string)
+/**
+ * Check if A name has only valid char
+ *
+ *@param string $string name to be checked
+ *@return int 1 if valid, 0 else
+ */
+function checkAName($string){
+	$string = strtolower($string);
+	// only specified char 
+	if(strcmp($string,"@") && (strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-") !=
+	strlen($string))){
 		$result = 0;
 	}else{
 		$result = 1;
@@ -274,7 +429,11 @@ function checkName($string){
  *@return 1 if valid, 0 else
  */
 function checkPrimary($string){
-	$string = str_replace(" ", "", $string);
+	// suppress trailing and ending space
+	$string = preg_replace("/^\s*(.*?)\s*$/", "$1", $string);
+	// suppress spaces before or after ;
+	$string = str_replace(" ;", ";", $string);
+	$string = str_replace("; ", ";", $string);
 	$primarylist = explode(';',$string);
 	$result = 0;
 	while(list($key,$value) = each($primarylist)){
@@ -297,7 +456,7 @@ function checkPrimary($string){
  */
 function checkEmail($string){
 	$result = 1;
-	if(!ereg("^.+@.+\\..+$", $string)) $result = 0;
+	if(!ereg("^[^.]+@.+\\..+$", $string)) $result = 0;
 	return $result;
 }
 
@@ -310,9 +469,12 @@ function checkEmail($string){
  *@return string 1 if valid, "No valid MX record found" else
  */
 function vrfyEmail($string){
-	if(!getmxrr(substr(strstr($string,'@'),1),$mxhosts)){
+	global $l;
+
+	$host = substr(strstr($string,'@'),1);
+	if(!getmxrr($host, $mxhosts) && !checkdnsrr($host, "A")){
 		// no valid MX record
-		return "No valid MX record found";
+		return $l['str_no_valid_mx_record'];
 	}else{
 		return 1;
 	}
@@ -360,17 +522,17 @@ function checkDig($server,$zone){
  *@return string serial number of zone or "not availabl"
  */
 function DigSerial($server,$zone){
-	global $config;
+	global $config, $l;
 	$result = `$config->binhost -t soa '$zone' '$server'`;
 	if(ereg("try again",$result)){
 		return $result;
 	}else{
 // modified 02/05/2002 to match host v9.2.1
 		preg_match("/.*SOA [^\s\t]+ [^\s\t]+ ([^\s\t]+)/",$result,$serial);
-		if($serial[1]){
+		if(isset($serial[1])){
 			return $serial[1];
 		}else{
-			return 'not available';
+			return $l['str_not_available'];
 		}
 	}
 }
@@ -429,18 +591,7 @@ function retrieveArgs($name, $httpvars){
  */
 function diffDate($date){
 	// $date : YYYY MM DD HH mm ss
-	$year = strftime("%Y");
-	$month = strftime("%m");
-	
-	$day = strftime("%d");
-	$hour = strftime("%H");
-	$min = strftime("%M");
-	if($min < 10){
-		$min = "0" . $min;
-	}
-	$sec = strftime("%S");
-	$now=$year.$month.$day.$hour.$min.$sec;
-	$nowts=mktime($hour,$min,$sec,$month,$day,$year);
+	$nowts=mktime(date("H"),date("i"),date("s"),date("m"),date("d"),date("y"));
 
 	$year=substr($date,0,4);
 	$month=substr($date,4,2);
@@ -461,19 +612,27 @@ function diffDate($date){
  */
 	function nowDate(){
 	// $date : YYYY MM DD HH mm
-	$year = strftime("%Y");
-	$month = strftime("%m");
-	
-	$day = strftime("%d");
-	$hour = strftime("%H");
-	$min = strftime("%M");
-	if($min < 10){
-		$min = "0" . $min;
-	}
-	$sec = strftime("%S");
-	$now=$year.$month.$day.$hour.$min.$sec;
+	$now=strftime("%Y%m%d%H%M%S");
 	return $now;
 	
+	}
+
+
+// Function dateToTimestamp($date)
+	/**
+	 * Returns date YYYYMMDDHHmmss formated into timestamp
+	 *
+	 *@return int date YYYYMMDDHHmmss formated into timestamp
+	 */
+	Function dateToTimestamp($date){
+	        $year=substr($date,0,4);
+		$month=substr($date,4,2);
+		$day=substr($date,6,2);
+		$hour=substr($date,8,2);
+		$min=substr($date,10,2);
+		$sec=substr($date,12,2);
+		$datets=mktime($hour,$min,$sec,$month,$day,$year);
+		return $datets;
 	}
 	
 	
@@ -525,12 +684,7 @@ function diffDate($date){
 		// if previous not null, construct against previous
 		// else, construct YYYYMMDD01
 
-		$year = strftime("%Y");
-		$month = strftime("%m");
-	
-		$day = strftime("%d");
-
-		$current = $year . $month . $day;
+		$current = strftime("%Y%m%d");
 		if(!notnull($previous) || ($current != substr($previous,0,8))){
 			$serial = $current . '01';			
 		}else{
@@ -543,4 +697,78 @@ function diffDate($date){
 		}
 		return $serial;
 	}
+
+
+
+// **********************************************************
+
+
+// function GetDirList($dir)
+// list directory content
+/**
+ * retrieve content of given directory in a list
+ *
+ *@param string $dir directory to be listed 
+ *@return list $list list of items in directory
+ */
+function GetDirList($dir){
+	global $config;
+    $list = array();
+    if ($handle = opendir($dir)){
+		while (false !== ($file = readdir($handle))) {
+			if (ereg("^[a-z][a-z]$", $file)){
+				array_push($list, $file);
+			}
+		}
+	}
+	return $list;
+}
+
+// function ConvertIPv6toDotted($string,$bytes = 32)
+/**
+ * convert $string into IPv6 nibble format
+ *
+ *@param string $string IPv6 any format
+ *@param int $bytes number of bytes in address 
+ *@return string $ipv6 ipv6 address in nibble format
+ */
+function ConvertIPv6toDotted($string, $bytes = 32){
+	if(ereg(":",$string)){
+		$ipsplit = split(":",$string);
+		$newiparray = array();
+		if(count($ipsplit) < $bytes / 4){
+			// total: 8 fields separated by ":"     
+			reset($ipsplit);
+			while(list($null,$ipitem) = each($ipsplit)){
+				if($ipitem == ''){
+					for($count=0;$count < ($bytes / 4) +1 - count($ipsplit);$count++){
+						array_push($newiparray,'0000');
+					}
+				}else{
+					array_push($newiparray,$ipitem);
+				}
+			}
+		}else{
+			$newiparray = $ipsplit;
+		}
+		$ipsplit = array();
+		reset($newiparray);
+		while(list($null,$ipitem) = each($newiparray)){
+			while(strlen($ipitem) < 4){
+				$ipitem = '0' . $ipitem;
+			}
+			array_push($ipsplit,$ipitem);
+		}
+		// final: 32 char separated by dots
+		$iplist = join('',$ipsplit);
+		$ipsplit = preg_split('//',$iplist);
+		array_pop($ipsplit);
+		array_shift($ipsplit);
+		$ip = join('.',$ipsplit);
+		return $ip;	
+	}else{
+		return $string;
+	}
+} 
+
 ?>

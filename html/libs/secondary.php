@@ -37,7 +37,7 @@ class Secondary extends Zone {
 	 */
 	 
 	Function Secondary($zonename,$zonetype,$user){
-		global $db;
+		global $db,$l;
 		$this->Zone($zonename,$zonetype);
 		
 		$query = "SELECT masters,xfer,serial
@@ -46,7 +46,7 @@ class Secondary extends Zone {
 		$line = $db->fetch_row($res);
 
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 
@@ -63,42 +63,43 @@ class Secondary extends Zone {
 	}
 
 
-//	Function printModifyForm($advanced)
+//	Function printModifyForm($params)
 	/**
 	 * Print HTML form pre-filled with current data
 	 *
 	 *@access public
-	 *@param int $advanced 0 or 1 if advanced interface needed or not
+	 *@param array $params params
 	 *@return string HTML form pre-filled
 	 */
-	Function printModifyForm($advanced){
+	Function printModifyForm($params){
+		global $l, $hiddenfields;
+
 		$this->error="";
+		list($advanced,$ipv6,$nbrows)=$params;
 		$result = "";
 
-		$result .= "<strong>Be sure that the nameserver is 
-		authoritative for your zone</strong><br>\n";
+		$result .= "<strong>" . $l['str_secondary_be_sure_that_name_server_is_auth']
+		. "</strong><br>\n";
 		
 		$result .= '
 		<form method="POST">
 			<input type="hidden" name="modified" value="1">
-			<input type="hidden" name="idsession" value="' . $this->user->idsession .
-			'">
+			' . $hiddenfields . '
 			<input type="hidden" name="zonename" value="' . 
 			$this->zonename . '">
 			<input type="hidden" name="zonetype" value="' . 
 			$this->zonetype . '">
 			<table border="0">
 			<tr><td align="right" class="boxheader">
-			<div align="right">zone : </div></td><td class="boxheader">' . $this->zonename . '
+			<div align="right">' . $l['str_zone'] . ': </div></td><td class="boxheader">' . $this->zonename . '
 			</td></tr>
-			<tr><td align="right">
-			primary name server IP(s) (use \';\' as separator)  : </td>
+			<tr><td align="right">' . $l['str_secondary_primary_ns_ip'] . ' : </td>
 			<td><input type="text" name="primary"
 			value="' . $this->masters . '">
 			</td></tr>
 
 			<tr><td align="right">
-			allow transfers from :</td><td>
+			' . $l['str_secondary_allow_transfer_from']  . ':</td><td>
 			<input type="radio" name="xfer" value="all" ';
 			$notothers = 0;
 			$xferip="";
@@ -106,13 +107,13 @@ class Secondary extends Zone {
 				$result .= 'checked';
 				$notothers = 1;
 			}
-			$result .= '>All
+			$result .= '>' . $l['str_secondary_allow_tranfer_all'] . '
 			<input type="radio" name="xfer" value="master" ';
 			if($this->xfer == $this->masters){
 				$result .= 'checked';
 				$notothers = 1;
 			}
-			$result .= '>Master only
+			$result .= '>' . $l['str_secondary_allow_transfer_master_only'] . '
 			</td></tr>
 			<tr><td align="right">
 			&nbsp;</td><td><input type="radio" name="xfer" value="others" ';
@@ -124,13 +125,13 @@ class Secondary extends Zone {
 					$xferip = $this->xfer;
 				}
 			}
-			$result .= '>Master and (IP separated by \';\'): 
+			$result .= '>' . $l['str_secondary_allow_transfer_master_and_ip'] . ': 
 			<input type="text" name="xferip" value="' . $xferip . '">
 			</td></tr>
 
 			
 			<tr><td colspan="2" align="center"><input type="submit"
-			value="Modify"></td></tr>
+			value="' . $l['str_secondary_modify_button'] . '"></td></tr>
 			</table>
 		</form>
 		';		
@@ -148,24 +149,28 @@ class Secondary extends Zone {
 	 *@return string HTML output
 	 */
 	Function PrintModified($params){
-		global $db, $config;
+		global $db, $config,$html, $l;
+				
 		list($primary,$xfer,$xferip)=$params;
 		$content = "";
-		
+		$localerror=0;
 		if(!notnull($primary)){
-			$error = 1;
-			$content .= '<font color="red">Error: you must provide a primary DNS
-			server</font><br />';
+			$localerror = 1;
+			$content .= $html->generic_error .
+				$l['str_secondary_you_must_provide_a_primary'] . 
+				$html->generic_error_end . '<br />';
 		}
 		
 		// if primary modified ==> try to dig
 		if($primary != $this->masters){
 			// check primary integrity 
 			if(!checkPrimary($primary)){
-				$error = 1;
-				$content .= '<font color=red>Error: your primary Name server should be an IP address<br>
-				If you want to use 2 primary NS, separe IP addresses with
-				\';\'</font><br />';
+				$localerror = 1;
+				$content .= $html->generic_error . 
+							$l['str_secondary_your_primary_should_be_an_ip'] . 
+							"<br />" .
+							$l['str_secondary_if_you_want_two_primary'] . 
+							$html->generic_error_end . '<br />';
 			}else{
 				// remove last ';' if present
 				if(substr($primary, -1) == ';'){
@@ -179,58 +184,59 @@ class Secondary extends Zone {
 					if($dig != 'NOERROR'){
 						switch($dig){
 						case "NOERROR":
-							$msg = "no error";
+							$msg = $l['str_dig_result_NOERROR'];
 							break;
 						case "FORMERR":
-							$msg = "format error";
+							$msg = $l['str_dig_result_FORMERR'];
 							break;
 						case "SERVFAIL":
-							$msg = "server failed";
+							$msg = $l['str_dig_result_SERVFAIL'];
 							break;
 						case "NXDOMAIN":
-							$msg = "no such domain name";
+							$msg = $l['str_dig_result_NXDOMAIN'];
 							break;
 						case "NOTIMP":
-							$msg = "not implemented";
+							$msg = $l['str_dig_result_NOTIMP'];
 							break;
 						case "REFUSED":
-							$msg = "refused";
+							$msg = $l['str_dig_result_REFUSED'];
 							break;
 						case "YXDOMAIN":
-							$msg = "domain name exists";
+							$msg = $l['str_dig_result_YXDOMAIN'];
 							break;
 						case "YXRRSET":
-							$msg = "rrset exists";
+							$msg = $l['str_dig_result_YXRRSET'];
 							break;
 						case "NXRRSET":
-							$msg = "rrset doesn't exist";
+							$msg = $l['str_dig_result_NXRRSET'];
 							break;
 						case "NOTAUTH":
-							$msg = "not authoritative";
+							$msg = $l['str_dig_result_NOTAUTH'];
 							break;
 						case "NOTZONE":
-							$msg = "Not in zone";
+							$msg = $l['str_dig_result_NOTZONE'];
 							break;
 						case "BADSIG":
-							$msg = "bad signature";
+							$msg = $l['str_dig_result_BADSIG'];
 							break;
 						case "BADKEY":
-							$msg = "bad key";
+							$msg = $l['str_dig_result_BADKEY'];
 							break;
 						case "BADTIME":
-							$msg = "bad time";
+							$msg = $l['str_dig_result_BADTIME'];
 							break;
 						}
-						
-						$content .= '<font color="red">Warning: trying to dig from ' 
-						. $ipserver . ' returned status "' . $dig . '"';
+
 						if(notnull($msg)){
-							$content .= ' (' . $msg . ')';
+							$dig .= '"' . $dig . '" (' . $msg . ')';
 						}
-						$content .= '.</font> This is a non-blocking warning, it will
-						not prevent your zone to be registered - but correct
-						this error or ' . $config->sitename . ' will not be able to serve your zone
-						correctly.<br />';
+
+						$content .= $html->generic_warning . 
+							sprintf($l['str_trying_to_dig_from_x_returned_status_x'],
+								$ipserver,$dig);
+						$content .= $html->generic_warning_end . " " .
+							sprintf($l['str_secondary_non_blocking_warning_x_will_not_serve'],
+									$config->sitename) . '<br />';
 					}
 				}
 			}
@@ -240,10 +246,10 @@ class Secondary extends Zone {
 		// check xferip
 		if(notnull($xferip)){
 			if(!checkPrimary($xferip)){
-				$error = 1;
-				$content .= '<font color="red">Error: invalid (list of) IP address(es) of servers allowed to
-				do transfers. If you want to add several IPs, separe them with
-				\';\'.</font><br />';
+				$localerror = 1;
+				$content .= $html->generic_error . 
+							$l['str_secondary_invalid_list_of_allowtransfer'] . 
+							$html->generic_error_end . '<br />';
 			}
 			$xfer='others';
 		}else{
@@ -283,7 +289,7 @@ class Secondary extends Zone {
 			}
 		
 		
-		if(!$error){
+		if(!$localerror){
 			// updatedb
 			if(!$this->updateDb($primary,$xferip)){		
 				$content .= $this->error;
@@ -294,50 +300,76 @@ class Secondary extends Zone {
 				$res = $db->query($query);
 				
 				if($db->error()){
-					$result .= '<p><font color="red">Error: Trouble with DB</font>
-					Your zone will not be available at next reload. Please come back 
-					later to modify it again.</p>';
+					$result .= '<p>' . $html->generic_error . 
+								$l['str_trouble_with_db'] . 
+								$html->generic_error_end . '<br />' . 
+								$l['str_secondary_your_zone_will_not_be_available'] .
+								'</p>';
 				}else{
+					// retrieve list of ns names
+					$nsxnames = GetListOfServerNames();
+					// retrieve list of ns addresses
+					$nsxips = GetListOfServerIPs();
+					// retrieve list of ns transfer IPs
+					$nsxferips = GetListOfServerTransferIPs();
+					$nsxferips = array_merge($nsxferips,$nsxips);
+					$nsxferips = array_unique($nsxferips);
 					$content .= '
 					<p />
-					<div class=boxheader>Zone successfully modified on
-					' . $config->sitename . '.</div>
+					<div class=boxheader>' . 
+					sprintf($l['str_secondary_zone_successfully_modified_on_x'],
+					$config->sitename) . '</div>
 					<p />
-				
-					Be sure to :<p />
-					- add following line to your zone file (with trailing dots) :<p />
+					' . $l['str_secondary_after_modif_be_sure_to'] . ':<p />
+					- ' . $l['str_secondary_after_modif_add_lines_to_zonefile'] . ':<p />
 					<pre>
-' . $this->zonename . '.	IN	NS	' . $config->nsname . '.
+';
+					while(list($notwanted,$nsxname) = each($nsxnames)){
+						$content .= $this->zonename . '.	IN	NS	' . $nsxname . '.
+';
+					}
+				$content .='
 				</pre>
 				<p />
 				
-				- modify your DNS configuration file as follow, to allow
-				transfer to ' . $config->nsname . ' (if you run your primary name server
-				with bind):
+				- ' . 
+				$l['str_secondary_after_modif_add_to_configfile'] . ':
 				<p />
 				<pre>
 // 
-// modify this sample configuration to fit your
-// needs
+// ' . $l['str_secondary_after_modif_comment_in_sample_1'] . '
+// ' . $l['str_secondary_after_modif_comment_in_sample_2'] . '
 //
 zone "' . $this->zonename . '" {
 	type master;
 	file "' . $this->zonename . '";
 	allow-transfer {
-		' . $config->nsaddress . ';
+		';
+		
+		
+		while(list($notwanted,$nsxferip) = each($nsxferips)){
+			$content .= $nsxferip . '; ';
+		}
+
+		$content .= '
 	};
 };
 </pre>
 					<p />
-					- Delegate zone ' . $this->zonename . ' to your primary 
-					name server and ' . $config->nsname . '.
+					- ' . sprintf($l['str_secondary_after_modif_delegate_x_to'],
+							$this->zonename) . ': ';
 				
+					reset($nsxnames);
+					$serverlist ='';
+					while(list($notwanted,$nsxname) = each($nsxnames)){
+						$serverlist .= ' <b>' . $nsxname . '</b> -';
+					}
+					$serverlist = substr($serverlist,0,-1);
+
+					$content .= $serverlist . '
 					<p />
 				
-					As configuration is reloaded on our name server once per hour,
-					this new configuration will be active within one hour. 
-					You should receive an email informing you about this reload.
-					<p />
+					' . $l['str_secondary_reload_info'] . '<p />
 
 					';
 				} // else no error
@@ -365,7 +397,7 @@ zone "' . $this->zonename . '" {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function updateDb($primary,$xferip){
-		global $db;
+		global $db,$l;
 
 		// 27/03/02 not possible to change email address in this script
 
@@ -380,7 +412,7 @@ zone "' . $this->zonename . '" {
 		}
 		$res = $db->query($query);
 		if($db->error()){
-			$this->error="Trouble with DB";
+			$this->error=$l['str_trouble_with_db'];
 			return 0;
 		}
 		
