@@ -1,0 +1,60 @@
+
+
+XName Database 
+===================
+
+- edit sql/creation.sql
+	change database name xnamedev for xname - or whatever name you want -
+	in the two first lines
+- run sql code
+	$ mysql -upoweruser -p < sql/creation.sql
+
+
+XName web interface
+===================
+
+- edit html/libs/config.php
+	change all items accordingly with your site configuration
+- edit html/disclaimer.php
+	change the disclaimer text to your one
+- be sure to have following programs available in your path:
+	dig named-checkzone host
+
+If you want to use your own design instead of XName.org's one,
+simply change each html/*.php file, accordingly 
+with html/libs/html.php where original functions where present.
+html/libs/html.php class & functions are used only in html/*.php files.
+
+
+XName DNS file generator & log insert
+======================================
+
+Firstly, you have to install bind. Tested on v9.2.1.
+
+- edit /etc/named.conf, configure general options, suppress eventually 
+everything at the end concerning local zones. 
+You have now a clean named header file. Just copy it into /etc/bind/headers
+or somewhere else (to be configured in bin/generate.pl).
+
+- edit bin/generate.pl, bin/insertlogs.pl and bin/delete.pl, modify vars.
+
+- modify crontab
+Add in crontab a line for insertlogs.pl, every 10 mn
+Add a crontab line for delete.pl, every hour 
+Add a crontab line for generate.pl, every hour 5 mn after delete.pl
+
+/etc/crontab sample:
+# XNAME
+*/10 *  * * *   root    /home/xname/bin/insertlogs.pl
+30 *   * * *   root    /home/xname/bin/delete.pl
+35 *    * * *   root    /home/xname/bin/generate.pl
+
+
+I Want to contribute
+=====================
+
+Report any bug to bugs@xname.org
+Report any idea to xname@xname.org
+Report any patch to xname@xname.org
+See http://www.xname.org/contribute for further contribution.
+
