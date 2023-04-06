@@ -11,7 +11,6 @@
 
 */
 
-
 // headers 
 include 'includes/header.php';
 
@@ -43,14 +42,20 @@ if($user->authenticated==1){
 	// list all zones, with serials, etc....
 	// and form to change email & password for $user
 
-	$allzones = $user->listallzones();
+	if($config->usergroups){
+		$allzones = $group->listallzones();
+		$user->error=$group->error;		
+	}else{
+		$allzones = $user->listallzones();
+	}
+
 	if(!notnull($user->error)){
 		$content ='<table border="0" width="100%">
 		<tr><td class="boxheader">Zone</td>
 		<td class="boxheader">Name Server</td><td class="boxheader">Serial</td>
 		<td class="boxheader">View</td><td class="boxheader">Status</td></tr>';
 		while($otherzone= array_pop($allzones)){
-			$newzone = new Zone($db,$otherzone[0],$otherzone[1],$config);
+			$newzone = new Zone($otherzone[0],$otherzone[1]);
 			$status = $newzone->zonestatus();
 			switch($status) {
 				case 'I':
@@ -91,7 +96,7 @@ return false">'.
 			if($newzone->zonetype=='P'){
 				$primary = new
 			
-Primary($db,$newzone->zonename,$newzone->zonetype,$user->userid,$config);
+Primary($newzone->zonename,$newzone->zonetype,$user->userid);
 				$keys = array_keys($primary->ns);
 				while($nameserver = array_shift($keys)){
 					$serial = DigSerial($nameserver,$primary->zonename);
@@ -114,7 +119,7 @@ return false">zone content</a></td></tr>';
 				// secondary NS
 				$secondary = new
 			
-Secondary($db,$newzone->zonename,$newzone->zonetype,$user->userid,$config);
+Secondary($newzone->zonename,$newzone->zonetype,$user->userid);
 				$masters = split(';',$secondary->masters);
 				// add our NS server to secondary NS servers 
 				array_push($masters, $config->nsname . ".");

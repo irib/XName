@@ -75,3 +75,335 @@ Fri Jul 19 2002 Yann Hirou (hirou@xname.org)
 	* createuser.php bug corrected (syntax error)
 		bug reported by Georges Toth (g.toth@e-biz.lu)
 
+
+Version 2.1.0
+-------------
+
+Fri Jul 26 2002 Yann Hirou (hirou@xname.org)
+
+	* modify.php html bug corrected
+
+	* libs/user.php modified
+
+	* group.php added
+
+
+Mon Jul 29 2002 Yann Hirou (hirou@xname.org)
+
+	* Bug in includes/header.php corrected, on undefined variables
+
+
+Fri Aug 02 2002 Yann Hirou (hirou@xname.org) / Georges Toth (g.toth@e-biz.lu)
+
+	* user groups and user logs implemented. Activable
+		using $config->usergroups and $config->userlogs.
+		Uses Group & Userlogs classes.
+
+	* User class constructor modified - $config added as parameter
+
+	* function timestampToDate added. Returns epoch timestamp 
+		formated into YYYYMMDDHHmmss. Used for userlogs purge.
+
+	* function checkEmail in libs/xname.php changed
+		use a single-line regexp to check the validity of an email address
+		allow a "." before the "@"
+
+	* function checkName in libs/xname.php changed
+		allow wildcard records
+
+	* all config vars are now in config.pl.
+
+
+Mon Aug 5 2002 Yann Hirou (hirou@xname.org)
+
+	* $RELOADALL_COMMAND suppressed.
+
+	* return code added to config.pl to avoid complaints.
+
+	* start of multi-server dev.
+
+	* $sth->finish missing in generate.pl added.
+
+	* bug 8 closed. Nothing is done un generate.pl unless zone has been
+		deleted or modified.
+
+	* status field of dns_zone used. dns_modified table suppressed.
+		file generation in generate.pl modified, rndc use optimized.
+
+	* $db and $config are globals.
+	
+
+Tue Aug 6 2002 Yann Hirou (hirou@xname.org)
+
+	* Multi-server added, with generation of command files for each server.
+
+	* creation of pustoservers.pl script.
+
+
+Tue Aug 6 2002 Georges Toth (g.toth@e-biz.lu)
+
+	* generate random password, and update pasword in DB
+
+	* use md5-passwords instead of plain-text
+
+	* better randomid generation
+
+	
+Wed Aug 7 2002 Georges Toth (g.toth@e-biz.lu)
+
+	* use -> variables instead hardcoded ones in primary.php
+	
+	
+Thu Aug 8 2002 Yann Hirou (hirou@xname.org)
+
+	* $NAMED_TMP_DIR and $CP_COMMAND added for backuping named.conf
+		backup active, with a restore on error.
+
+	* Use of $NAMED_MASTERS_DIR and $NAMED_SLAVES_DIR. Push of masters list
+		for multiservers config.
+
+	* add of sshport in dns_server for each server, in case of a non-standard port
+		for ssh on remote server.
+		
+		
+Fri Aug 9 2002 Yann Hirou (hirou@xname.org)
+	
+	* bug 9 closed. Logs are deleted only if older than a configurable nb of hours
+		and if after deletion a minimum amount of logs is kept.
+	
+	* bug 31 corrected. insertlogs.pl patterns moved to config.pl.
+
+	* cleanlogs.pl added in xname-module, to prepare logs for retrieval by
+		main server. few config params added in config.pl.
+
+	
+Mon Aug 19 2002 Yann Hirou (hirou@xname.org)
+
+	* in xname.php checkEmail corrected. It could not work, due to a variable name error.
+
+	* BugID 9 corrected: zone creation generates a log line, with status 'I'.
+
+	
+Wed Aug 21 2002 Yann Hirou (hirou@xname.org)
+
+	* getremotelogs.pl created. Script to retrieve and insert logs from
+		remote servers.
+
+	* xname-module/bin/cleanlogs.pl : $SERVER_PATH_TO_INPUT/logpush.txt is used 
+		instead of specific directory.
+		Only one directory is now used on remote server.
+
+	* doc/multiserver.txt created. Doc explaining how multiserver works.
+
+	* doc/scheduler.txt created. Doc explaining how and when to use bin/scheduler.pl
+
+		
+Fri Aug 23 2002 Yann Hirou (hirou@xname.org)
+
+	* In generate.pl, use of system() instead of `...`, due to zombies problems.
+
+	* in getremotelogs.pl, scp port and pathonremote correctly added.
+		Some typo, and log timestamps added (bug 30).
+
+	* creation of sqloptimize.pl to optimize SQL tables. To be run once a week.
+
+	* $config->multiserver added, and matching code added in libs/zone.php
+		to insert new zones in dns_zonetoserver.
+	
+	
+Mon Aug 26 2002 Yann Hirou (hirou@xname.org)
+
+	* add of a scheduler daemon for all perl scripts on master server
+
+	* doc/dynamic-update.txt added. very little doc on dynamic updates, with client 
+		script samples.
+
+
+Mon Aug 26 2002 Eric van der Vlist (evlist@dyomedea.com)
+
+	* AZONE suppressed, as Function AddAZONERecord. TTL on screen output corrected
+		to right value.
+
+	* html/xmlrpc.php: xmlrpc script to allow dynamic update.
+
+
+Tue Aug 27 2002 Yann Hirou (hirou@xname.org)
+	
+	* AZONE suppressed from DB, replaced by an A record for the zone itself
+		(bug 39).
+
+	* in html interface $user->advanced flag added, with a checkbox on
+		pref and creation page to let user choose between its default interface.
+
+	* bug 20 fixed in html/user.php  by comparing md5($oldpass) instead of $oldpass with
+		result of $user->retrievepassword.
+
+	* $advanced parameter added to printModifyForm for primary and secondary
+		zone, for printing advanced interface.
+
+	* bug 32 corrected. $user->valid select user AND valid=1, as $user->exists
+		selects only if login already exists. Prevent from having two users with
+		the same login name but different passwords.
+
+
+Wed Aug 28 2002 Yann Hirou (hirou@xname.org)
+
+	* Creation of RULES file, containing rules for coding XName soft.
+	
+	* Enable possibility for users to switch between normal and advanced
+		intervace without changing their prefs. added a check on 
+		$advanced param. If not present, use $user->advanced (in modify.php)
+	
+
+Thu Aug 29 2002 Yann Hirou (hirou@xname.org)
+
+	* ttl are used for each record if ttl != default. Difference has been made
+		between minimum and default ttl (bug 17).
+
+	* SOA param can be modified.
+	
+	* RetrieveRecords and RetrieveMultiRecords modified: array added, for
+		ttl retrieval.
+	
+
+Thu Sep 19 2002 Yann Hirou (hirou@xname.org)
+
+	* use of checkZone instead of checkDomain in createzone.php
+
+	* in primary.php, bad query to check CNAME unicity corrected, 
+		and bug 43 resolved: IP address can no more be used in 
+		CNAME A record field.
+
+	* in primary.php, error in generateConfigFile function, $this->cname[...] 
+		used instead of $this->cnamettl[...] corrected.
+
+	* in xname.php, checkdomain modified to check for non alphabetic char at the end of
+		zone name - to avoid IP addresses & numeric TLD. (bug 35)
+	
+	* in xname.php, CheckDomain rolled back, checkZone created - because of abusive use of
+		checkdomain somewhere else, and border effects.
+	
+		
+Mon Sep 23 2002 Yann Hirou (hirou@xname.org)
+
+	* in perl scripts, logtimestamp function added in xname.inc, to enable 
+		logging timestamp in all logs output. bug 30 corrected.
+
+
+Tue Sep 24 2002 Yann Hirou (hirou@xname.org)
+
+	* html/deleteuser.php added. Provides a way for a user to commit suicide.
+
+	* zoneCreate modified, to return a different message when zone already
+		exists but with deletion status.
+
+	* ZoneDelete modified, to be usable.
+
+
+Mon Oct 28 2002 Yann Hirou (hirou@xname.org)
+
+	* minor bug corrections regarding logs and multiservers:
+		logs not using logtimestamp(), bad SQL requests for multiserver
+
+
+Thu Oct 31 2002 Yann Hirou (hirou@xname.org)
+
+	* Bug in SQL request in pushtoservers.pl script corrected.
+
+	
+Mon Nov 4 2002 Yann Hirou (hirou@xname.org)
+
+	* Bugfixes preventing multi-server to work properly 
+
+
+Tue Nov 5 2002 Yann Hirou (hirou@xname.org)
+
+	* Correction for insertlogs.pl in deleteOldLogs function. Might solve
+		abusive deletion of logs as stated in bug 44.
+
+	* zoneLogDelete() function added in php scripts. Removes all logs
+		for current zone. logwindow.php modified to allow log deletion.
+	
+	* zonelog() modified to include date in zone logs output.
+
+
+Wed Nov 6 2002 Yann Hirou (hirou@xname.org)
+
+	* servername added for each line in zone log view.
+
+	
+Fri Nov 8 2002 Yann Hirou (hirou@xname.org)
+
+	* in generate.pl, only one mail is sent per user with all reloaded zones
+		specified inside.
+
+
+Mon Nov 11 2002 Yann Hirou (hirou@xname.org)
+
+	* adding all server in allow-transfer list, either on local and remote servers.
+	
+	* xname-module: use DBI; has been moved to config.pl, and commented. Otherwise, if DBI
+		not present, even if in a conditional block, perl complaints.
+
+	* xname-module: functions for cleanlogs.pl added to xname.inc.
+
+	* xname-module: typo in importfromserver.pl, preventing zone to load correctly.
+
+	* xname-module: correction of importfromserver.pl to read correcly input file.
+
+
+Wed Nov 13 2002 Yann Hirou (hirou@xname.org)
+
+	* in bin/xname.inc, rewrite of logtimestamp() function, to definitively
+		solve bug 30. now logtimestamp() uses localtime()->* instead of
+		(*,*,...) = localtime().
+
+
+Mon Nov 18 2002 Yann Hirou (hirou@xname.org)
+
+	* modification of INSTALL and MIGRATE files accordingly with new version
+
+	* creation of CONTRIBUTORS file for beta release.
+
+	* Add of backend.php. It is used for wmXName info retrieval - or any other 
+		not-already developped tool. It's a simple backend script, taking 
+		login & password as param.
+
+Tue Nov 19 2002 Yann Hirou (hirou@xname.org)
+
+	* log timestamp bug correction in bin/delete.pl, bin/generate.pl. 12:02:09 
+		was logged as 12:2:9
+		
+	* use of sshhost for servers, as ssh connection might be done on a different
+		IP address than the listening named.
+
+	* corrections of bugs in bin/getremotelogs.pl, preventing logs to be inserted.
+		directory of retrieved logs missing, insert serverid in DB, wrong 
+		column name in DB query corrected.
+	
+	* use of a scheduler for xname module.
+
+Fri Dec 20 2002 Yann Hirou (hirou@xname.org)
+
+	* correction of a security issue discovered by Matthias Keller <matti@keller.com>,
+		allowing anyone with a valid account to dig any xname-hosted zone.
+		
+Sat Dec 21 2002 Yann Hirou (hirou@xname.org)
+
+	* correction of a bug discovered by Dave Spenceley <ds@dspen.com>, preventing 
+		mail hosts without full qualified domain names to be entered. Now short
+		names within current zone can be used.
+
+Fri Jan 03 2003 Yann Hirou (hirou@xname.org)
+
+	* Incorrect dns_userlog creation in creation.sql. Fields were missing
+	  when creating DB from scratch. Thanx to Gunther Stammwitz <gs@mainlab.de>
+	  for reporting problem.
+
+	* A touch of $NAMED_CONF has been added, to prevent generate.pl to crash
+	  if not present (ie for initial startup for example). Reported by
+	  Gunther Stammwitz <gs@mainlab.de>.
+	
+	* Zone status in modify.php now opens a new window, like in index.php.
+	  Reported by Gunther Stammwitz <gs@mainlab.de>.
+	

@@ -14,14 +14,16 @@ use DBI;
 use Time::localtime;
 use Date::Parse;
 
-require "config.pl";
+# *****************************************************
+# Where am i run from
+$0 =~ m,(.*/).*,;
+$XNAME_HOME = $1;
 
-$LOG_PREFIX .= "insertlogs";
+require $XNAME_HOME . "config.pl";
+require $XNAME_HOME . "xname.inc";
 
+$LOG_PREFIX='XName-insertlogs';
 
-########################################################################
-#         To modify configuration parameters, edit config.pl
-########################################################################
 
 ########################################################################
 # STOP STOP STOP STOP STOP STOP STOP STOP STOP STOP STOP STOPS STOP STOP
@@ -45,16 +47,6 @@ $LOG_PREFIX .= "insertlogs";
 # Current solution : print logs whenever primary or secondary
 # or both
 
-
-
-# Mar  3 05:25:54 unlimited named[30467]: zone lukla.com/IN: refresh: failure trying master 24.244.15.158#53: timed out
-$PATTERN_NAMED = "^([^\\s]+)\\s+([^\\s]+)\\s+([^\\s]+)\\s+[^\\s]+\\s+named[^\\s]+\\s(.*)";
-# $PATTERN_NAMED = "^([^\\s]+)\\s+([^\\s]+)\\s+([^\\s]+)\\s+([^\\s]+)";
-# $1 : month
-# $2 : day
-# $3 : hour:min:sec
-# $4 : content
-
 # connect to DB
 # retrieve last parsed line
 
@@ -76,17 +68,17 @@ open(LOG, ">>" . $LOG_FILE);
 $query = "SELECT line FROM dns_logparser";
 my $sth = $dbh->prepare($query);
 if(!$sth){
-	print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 }
 if (!$sth->execute) {
-	print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+	print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 }
 $ref = $sth->fetchrow_hashref();
 $lastline = $ref->{'line'};
 
 
 # open file
-open(FILE, "< " . $SYSLOG_FILE) || die "Error";
+open(FILE, "< " . $SYSLOG_FILE) || die "Error opening $SYSLOG_FILE";
 # go to last parsed line
 if($lastline ne ""){
 	$currentline=<FILE>;
@@ -107,13 +99,6 @@ if($lastline ne ""){
 # if no line is read, don't save last read line !
 $readline = 0;
 
-$protectednameddir= $NAMED_DATA_CHROOTED_DIR;
-$protectednameddir =~ s/\//\\\//g;
-$protectedmastersdir = $NAMED_MASTERS_DIR;
-$protectedmastersdir =~ s/\//\\\//g;
-$protectedmastersdir = $NAMED_SLAVES_DIR;
-$protectedslavesdir =~ s/\//\\\//g;
-
 while(<FILE>){
 	$readline++;
 	$line = $_;
@@ -122,7 +107,7 @@ while(<FILE>){
 	my $content;
 	my $newcontent;
 	
- 	if(/$PATTERN_NAMED$/){
+ 	if(/$LOG_PATTERN_NAMED$/){
 		# $1 : month
 		# $2 : day
 		# $3 : hour:min:sec
@@ -132,15 +117,14 @@ while(<FILE>){
 		my $timestamp = getTimestamp($1,$2,$3);
 		
 		# retrieve zonename...
-		if($content =~ /\s('|)([^\/\s]+)\/IN/){
+		if($content =~ /$LOG_PATTERN_ZONE/){
 			$zonename = $2;
 		}else{
-			
-			if($content =~
-			/$protectednameddir($protectedmastersdir|$protectedslavesdir)([^:]+):/){
+		
+			if($content =~ /$LOG_PATTERN_FILE/){
 				$zonename = $2;
 			}else{	
-				print LOG $LOG_PREFIX . " : Not matching : $content\n";
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Not matching : $content\n";
 			}
 		}
 		
@@ -148,7 +132,6 @@ while(<FILE>){
 		# remove zonename from matching words
 		$newcontent=$content;
 		$newcontent =~ s/$zonename/ /g;
-#		print "Zone $zonename Content: $content\n\tNewcontent: $newcontent\n";
 		if($newcontent =~ /(failed|failure|non-authoritative|denied|exceeded|expired)/){
 			$status = 'E';
 		}else{
@@ -171,10 +154,10 @@ while(<FILE>){
 		"'";
 		my $sth = $dbh->prepare($query);
 		if(!$sth){
-			print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 		}
 		if (!$sth->execute) {
-			print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 		}
 		$ref = $sth->fetchrow_hashref();
 		if(!$ref->{'id'}){
@@ -183,10 +166,10 @@ while(<FILE>){
 			".'";
 			my $sth = $dbh->prepare($query);
 			if(!$sth){
-				print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 			}
 			if (!$sth->execute) {
-				print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 			}
 			$ref = $sth->fetchrow_hashref();
 			if($ref->{'id'}){
@@ -197,10 +180,10 @@ while(<FILE>){
 
 				my $sth = $dbh->prepare($query);
 				if(!$sth){
-					print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 				}
 				if (!$sth->execute) {
-					print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 				}
 			}
 		}else{
@@ -209,10 +192,10 @@ while(<FILE>){
 			"','" . $status . "')";
 			my $sth = $dbh->prepare($query);
 			if(!$sth){
-				print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 			}
 			if (!$sth->execute) {
-				print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 			}
 		}
 		
@@ -230,24 +213,24 @@ if($readline){
 	$query = "DELETE FROM dns_logparser where 1>0";
 	my $sth = $dbh->prepare($query);
 	if(!$sth){
-		print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 	}
 	if (!$sth->execute) {
-		print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 	}
 
 	$query = "INSERT INTO dns_logparser (line) values ('" . $line . "')";
 	my $sth = $dbh->prepare($query);
 	if(!$sth){
-		print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 	}
 	if (!$sth->execute) {
-		print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 	}
 }
 
 
-deleteOldLogs(60*$LOG_HOURS_TO_KEEP);
+deleteOldLogs(60*$LOG_HOURS_TO_KEEP,$LOG_NB_MIN_TO_KEEP);
 
 
 
@@ -265,7 +248,9 @@ close(LOG);
 
 sub deleteOldLogs(){
 	# delete logs older than $nbmins minutes
+	# if more than $nblogs log entries
 	$nbmins = @_[0];
+	$nblogs = @_[1];
 	$time = time();
 	
 	$timenew = $time - $nbmins*60;
@@ -293,21 +278,89 @@ sub deleteOldLogs(){
 	$day = $mday;
 	
 
+	# count number of logs junger than $nbmins PER ZONE
+	# if less than $nblogs, keep $nblogs-result and delete others
+
 	$timestamp = getTimestamp($month,$day,$hourminsec);
-	
-	$query = "DELETE FROM dns_log WHERE
-	date < " . $timestamp;
+
+
+	# retrieve all zones having logs.
+	$query = "SELECT zoneid FROM dns_log";
 	my $sth = $dbh->prepare($query);
 	if(!$sth){
-		print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
 	}
 	if (!$sth->execute) {
-		print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+		print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 	}	
+	while(my $ref = $sth->fetchrow_hashref()){
+		$zoneid = $ref->{'zoneid'};
+		
+		# count logs younger than $timestamp
+		$query = "select count(*) as count FROM dns_log
+			WHERE date > " . $timestamp . " 
+			AND zoneid='" . $zoneid . "' ORDER BY date DESC";
+		my $sth2 = $dbh->prepare($query);
+		if(!$sth2){
+			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+		}
+		if (!$sth2->execute) {
+			print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
+		}	
+		$ref2 = $sth2->fetchrow_hashref();
+		$nb = $ref2->{'count'};
+		$sth2->finish();
+		
+		if($nb < $nblogs){
+			# keep everyting until nblogs
+			# count total of logs 
+			# delete ascending until total - nblogs
+			$query = "SELECT count(*) as count FROM dns_log
+					WHERE zoneid='" . $zoneid . "'";
+			my $sth2 = $dbh->prepare($query);
+			if(!$sth2){
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+			}
+			if (!$sth2->execute) {
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
+			}	
+			$ref2 = $sth2->fetchrow_hashref();
+			$nbtotal = $ref2->{'count'};
+			$sth2->finish();
+			
+			if($nbtotal > $nblogs){
+				$nbtodelete = $nbtotal - $nblogs;
+				$query = "DELETE FROM dns_log
+						WHERE zoneid='" . $zoneid . "'
+						LIMIT " . $nbtodelete;
+				my $sth2 = $dbh->prepare($query);
+				if(!$sth2){
+					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+				}
+				if (!$sth2->execute) {
+					print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
+				}	
+				$sth2->finish();
+			}
+			
+	
+		}else{ # $nb >= $nblogs
+			# more than $nblogs will be not deleted => ok to delete all
+			# before timestamp
+			$query = "DELETE FROM dns_log WHERE
+			date < " . $timestamp . " AND zoneid='" . $zoneid . "'";
+			my $sth2 = $dbh->prepare($query);
+			if(!$sth2){
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+			}
+			if (!$sth2->execute) {
+				print LOG logtimestamp() . " " . $LOG_PREFIX . " : Error:" . $sth2->errstr . "\n";
+			}
+		}
 
-}
-
-
+	} # end while zoneid
+	
+} # end deleteoldlogs
 
 
 # ###################################################################"

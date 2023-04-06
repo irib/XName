@@ -18,7 +18,7 @@ require 'libs/xname.php';
 
 $config = new Config();
 
-$html = new Html($config);
+$html = new Html();
 
 print $html->header('Dig zone');
 
@@ -47,7 +47,7 @@ if(isset($password)){
 
 $db = new Db($config);
 
-$user = new User($db,$login,$password,$idsession);
+$user = new User($login,$password,$idsession);
 
 if(!notnull($idsession)){
 	$idsession=$user->idsession;
@@ -74,17 +74,21 @@ if($user->authenticated==1){
 		$zonetype = $_REQUEST['zonetype'];
 		$server = $_REQUEST['server'];		
 	}
-	$zone = new Zone($db,$zonename,$zonetype,$config);
+	$zone = new Zone($zonename,$zonetype);
 	if($zone->error){
-	print "<font color=\"red\">" . $user->error . "</font>\n";
+	print "<font color=\"red\">" . $zone->error . "</font>\n";
 	}else{
-		$title = "Zone content for " . $zone->zonename . " on $server";
-		$content = '
-		<table border="0" width="100%"><pre>' .
-		zoneDig($server,$zonename) . 
-		'</pre></table>';
+		if($zone->RetrieveUser() != $user->userid){
+			print "<font color=\"red\">You do not own this zone</fon                                                t>\n";
+		}else{
+			$title = "Zone content for " . $zone->zonename . " on $server";
+			$content = '
+			<table border="0" width="100%"><pre>' .
+			zoneDig($server,$zonename) . 
+			'</pre></table>';
 	
-		print $html->box($title,$content);
+			print $html->box($title,$content);
+		}
 	}
 }
 

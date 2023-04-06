@@ -40,6 +40,9 @@ Class Config {
 		$this->dbpersistent = 1;
 		// host & port needed for chrooted web server
 		// without mysql unix socket access
+		// if using unix socket, put localhost and path to socket 
+		// instead of port
+		// for example: $this->dbport='/tmp/mysql.sock';
 		$this->dbhost = '213.11.111.252';
 		$this->dbport = '3306';
 		$this->dbuser = 'xnameuser';
@@ -48,10 +51,25 @@ Class Config {
 		// your NS parameters
 		$this->nsname = 'ns0.xname.org';
 		$this->nsaddress = '213.11.111.252';
-		// bin paths
 		$this->bindig = '/bin/dig';
 		$this->binhost = '/bin/host';
 		$this->binnamedcheckzone = '/bin/named-checkzone';
+		// public "ala www.xname.org" or restricted access ? (1 or 0)
+		// if restricted (0), users have to be created manually
+		// mysql> insert into dns_user (login,email,password,valid)
+		// mysql> values ('logintobeset','emailtobeset','passwordtobeset','1')
+		$this->public=1;
+		// activate "whois" functionnality on main page
+		$this->whois=1;
+		// activate user groups - a group is made of 1 admin, any read/write, any read
+		$this->usergroups=1;
+		// activate log of user actions - usefull in a group, useless otherwise
+		$this->userlogs=1;
+		// if there are xname-modules on remote servers.
+		$this->multiserver=1;
+		// enable advanced interface 
+		$this->advancedinterface=1;
+		
 		return $this;
 	}
 }

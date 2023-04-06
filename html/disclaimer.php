@@ -15,7 +15,7 @@ require 'libs/xname.php';
 
 $config = new Config();
 
-$html = new Html($config);
+$html = new Html();
 
 print $html->header('Warranty & Disclaimer');
 

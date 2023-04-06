@@ -25,10 +25,8 @@ Class Html{
 	 * Class constructor
 	 *
 	 *@access public
-	 *@param string $config class Config member
 	 */
-	function Html($config){
-		$this->config=$config;
+	function Html(){
 		return $this;
 	}
 
@@ -43,13 +41,14 @@ Class Html{
 	 *@return string HTML code
 	 */
 	function header($title){
+	global $config;
 	$result ='
 	<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-15" />
 	<title>XName: ' . $title . '</title>
-	<link rel="stylesheet" type="text/css" href="' . $this->config->cssurl . '" />
+	<link rel="stylesheet" type="text/css" href="' . $config->cssurl . '" />
 </head>
 <body bgcolor="#ffffff">
 	';

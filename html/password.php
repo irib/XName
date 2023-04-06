@@ -72,7 +72,7 @@ if((isset($_REQUEST) && !isset($_REQUEST['id']) && !isset($_REQUEST['account']))
 					$zonetype = $_REQUEST['zonetype'];
 				}
 				$zonetype=addslashes($zonetype);
-				$zone=new Zone($db,$zonename,$zonetype,$config);
+				$zone=new Zone($zonename,$zonetype);
 				if(notnull($zone->error)){
 					$content = '<font color="red">Error: ' . $zone->error;
 					$error=1;
@@ -157,7 +157,8 @@ warning : this page can be accessed only once.
 				$id=addslashes($id);
 				if($user->validateIDRecovery($id)){
 					// id OK, validate
-					$password = $user->Retrievepassword();
+					$password = $user->GenerateRandomPassword(8);
+					$user->updatePassword($password);
 					$content = '
 					Your login is: <div class="boxheader">' 
 					. $user->retrieveLogin($user->userid) . '</div><p />
@@ -189,7 +190,7 @@ warning : this page can be accessed only once.
 						$zonetype=$_REQUEST['zonetype'];
 					}
 					$zonetype = addslashes($zonetype);
-					$zone=new Zone($db,$zonename,$zonetype);
+					$zone=new Zone($zonename,$zonetype);
 					if(notnull($zone->error)){
 						$content = '<font color="red">Error: ' . $zone->error;
 					}else{

@@ -36,7 +36,6 @@ print $html->globaltablemiddle();
 // main content
 
 if($user->authenticated==1){
-
 	if(isset($_REQUEST) && isset($_REQUEST['zonename'])){
 		$zonename=$_REQUEST['zonename'];
 		$zonetype=$_REQUEST['zonetype'];
@@ -44,21 +43,23 @@ if($user->authenticated==1){
 	if(notnull($zonename)){
 		$zonename = addslashes($zonename);
 		$zonetype = addslashes($zonetype);
-		$zone = new Zone($db,$zonename,$zonetype,$config);
+		$zone = new Zone($zonename,$zonetype);
 		if($zone->error){
-			print "Error: " . $zone->error;
+			$content = '<font color="red">Error: ' . $zone->error . '</font>';
 		}else{
-			// verify that $zone is owned by $user
-			if($zone->RetrieveUser() != $user->userid){
-				print "Error: zone " . $zone->zonename . " (" . 
-				$zone->zonetype . ") is not owned by you .";
-				print $zone->Retrieveuser() ."!=". $user->userid;
+			// verify that $zone is owned by user or group
+			if((!$config->usergroups &&
+				$zone->RetrieveUser() != $user->userid) ||
+				($config->usergroups && 
+				$zone->RetrieveUser() != $group->groupid)){
+				$content = '<font color="red">Error: you can not manage zone ' . $zone->zonename . " (" . 
+				$zone->zonetype . ")</font>";
 			}else{
 
-				print '<table border="0" width="100%" class="top">
-			<tr class="top"><td class="top"><div align=center>Current zone: ' . $zone->zonename . '
-			</div></td></tr></table>
-			';
+				$content = '<table border="0" width="100%" class="top">
+				<tr class="top"><td class="top"><div align=center>Current zone: ' . $zone->zonename . '
+				</div></td></tr></table>
+				';
 
 
 				$title = $zone->zonename;
@@ -66,19 +67,28 @@ if($user->authenticated==1){
 				if($zone->zonetype=='P'){
 					$title .= ' Primary';
 					if(isset($_REQUEST)){
-						$azone = $_REQUEST['azone'];
 						$xferip = $_REQUEST['xferip'];
+						$defaultttl = $_REQUEST['defaultttl'];
+						$soarefresh = $_REQUEST['soarefresh'];
+						$soaretry = $_REQUEST['soaretry'];
+						$soaexpire = $_REQUEST['soaexpire'];
+						$soaminimum = $_REQUEST['soaminimum'];
 					}
-					$azone=addslashes($azone);
 					$xferip=addslashes($xferip);
+					$defaultttl=addslashes($defaultttl);
+					$soarefresh=addslashes($soarefresh);
+					$soaretry=addslashes($soaretry);
+					$soaexpire=addslashes($soaexpire);
+					$soaminimum=addslashes($soaminimum);
 					if(isset($_REQUEST)){
-						$params=array($_REQUEST,$azone,$xferip);
+						$params=array($_REQUEST,$xferip,$defaultttl,
+								$soarefresh,$soaretry,$soaexpire,$soaminimum);
 					}else{
-						$params=array($HTTP_POST_VARS,$azone,$xferip);
+						$params=array($HTTP_POST_VARS,$xferip,$defaultttl,
+								$soarefresh,$soaretry,$soaexpire,$soaminimum);
 					}
-					$currentzone = new
-				
-Primary($db,$zone->zonename,$zone->zonetype,$user,$config);
+						$currentzone = new Primary($zone->zonename,
+						$zone->zonetype,$user);
 				}else{
 					if($zone->zonetype=='S'){
 						$title .= ' Secondary';
@@ -91,30 +101,99 @@ Primary($db,$zone->zonename,$zone->zonetype,$user,$config);
 						$xfer=addslashes($xfer);
 						$xferip=addslashes($xferip);
 						$params=array($primary,$xfer,$xferip);
-						$currentzone = new
-Secondary($db,$zone->zonename,$zone->zonetype,$user,$config);
+						$currentzone = new Secondary($zone->zonename,
+							$zone->zonetype,$user);
 					}
 				}
 				if(isset($_REQUEST)){
 					$modified = $_REQUEST['modified'];
 				}
 				if($modified == 1){
-					$content = $currentzone->printModified($params);
+					if($config->usergroups && ($usergrouprights == 'R')){ 
+					// if usergroups, zone is owned by
+					// group and current user has no creation rights
+						$content .= '<font color="red">Error: You are not allowed
+						by your group administrator to create/write zones.</font>';
+					}else{
+						$content .= $currentzone->printModified($params);
+						// logs
+						if($config->usergroups){ 
+							if($config->userlogs){
+								if(!$currentzone->error){
+									if($currentzone->zonetype == 'P'){
+										$userlogs->addLogs($currentzone->zoneid,
+										"Modification of " .
+										$currentzone->zonename . " (" .
+										$currentzone->zonetype . "). New serial: " . 
+										$currentzone->serial);
+									}else{
+										$userlogs->addLogs($currentzone->zoneid,
+										"Modification of " .
+										$currentzone->zonename . " (" .
+										$currentzone->zonetype . ").");
+									}
+									
+								}else{
+									$userlogs->addLogs($currentzone->zoneid,
+									"Trouble during modification of " .
+									$currentzone->zonename . " (" .
+									$currentzone->zonetype . 
+									"): " . $currentzone->error);
+								}							
+								if($userlogs->error){
+									$content .= '<font color="red">Error logging action: '.$userlogs->error .
+									'</font>';
+								}
+							}
+						}
+					} // end usergrouprights != R		
 				}else{
-					$content = $currentzone->printModifyForm();
+					if($config->usergroups && ($usergrouprights == 'R')){ 
+						// if usergroups, zone is owned by
+						// group and current user has no creation rights
+						$content = '<font color="red">Warning: You are not allowed
+						by your group administrator to create/write zones,
+						validation of this form will be inactive.</font>';
+					}else{
+						$content = "";
+					}
+					// to let user access advanced interface, even if not
+					// in its preferences.
+					if((isset($_REQUEST) && $_REQUEST['advanced']) ||
+						(!isset($_REQUEST) && $advanced)){
+						$advanced = 1;
+					}else{
+						$advanced = $user->advanced;
+					}
+					
+					$content .= $currentzone->printModifyForm($advanced);
+				}
+				if($config->usergroups){
+					if($config->userlogs){
+						// $usergrouprights was set in includes/login.php
+						if(($usergrouprights == 'R') || ($usergrouprights =='W')){
+							$content .= '<p />Warning, as member of a group, your action
+							will be logged.';
+						}
+					}	
 				}
 			}
 		}
 	}else{
 		$title =  "choose a zone to modify";
-		
-		$zonelist = $user->listallzones();
-		
+	
+		if($config->usergroups){
+			$allzones = $group->listallzones();
+			$user->error=$group->error;			
+		}else{
+			$allzones = $user->listallzones();
+		}
+	
 		if(!notnull($user->error)){
-			$content =  '<div class="boxheader"choose a zone to modify</div>';
+			$content =  '<div class="boxheader">choose a zone to modify</div>';
 			$content .='<table border="0" width="100%">';
-			while($otherzone= array_pop($zonelist)){
-				$newzone = new Zone($db,$otherzone[0],$otherzone[1],$config);
+			while($otherzone= array_pop($allzones)){
+				$newzone = new Zone($otherzone[0],$otherzone[1]);
 				$status = $newzone->zonestatus();
 				switch($status) {
 				case 'I':
@@ -133,11 +212,17 @@ Secondary($db,$zone->zonename,$zone->zonetype,$user,$config);
 				.$link.'&zonename=' . $newzone->zonename . '&zonetype=' .
 				$newzone->zonetype . '" class="linkcolor">' .
 				 $newzone->zonename . '</a> (' . $newzone->zonetype . ')</td><td
-				 class="loghighlight' . $class . '"><a href="logwindow.php'
-				 .$link .'&zonename=' .$newzone->zonename . '&zonetype=' .
-				$newzone->zonetype . '" class="linkcolor">'.
+				 class="loghighlight' . $class . '" align="center"><a href="logwindow.php'
+			 .$link .'&zonename=' .$newzone->zonename . '&zonetype=' .
+			$newzone->zonetype . '" class="linkcolor" onclick="window.open(\'logwindow.php'
+			 .$link .'&zonename=' .$newzone->zonename . '&zonetype=' .
+			$newzone->zonetype .
+		
+'\',\'Logs\',\'toolbar=no,location=no,directories=no,status=yes,alwaysraised=yes,dependant=yes,resizable=yes,scrollbars=yes,menubar=no,width=640,height=480\');
+return false">'.
 				 $status . '</a></td></tr>';
 			}
+
 			$content .= '</table>';
 		}else{
 			$content = $user->error;

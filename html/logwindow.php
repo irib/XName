@@ -19,7 +19,7 @@ require 'libs/xname.php';
 
 $config = new Config();
 
-$html = new Html($config);
+$html = new Html();
 
 print $html->header('Log viewer');
 
@@ -46,9 +46,9 @@ if(isset($password)){
 	$password = addslashes($password);
 }
 
-$db = new Db($config);
+$db = new Db();
 
-$user = new User($db,$login,$password,$idsession);
+$user = new User($login,$password,$idsession);
 
 if(!notnull($idsession)){
 	$idsession=$user->idsession;
@@ -70,21 +70,40 @@ if($user->error){
 }
 
 if($user->authenticated==1){
+
 	if(isset($_REQUEST)){
 		$zonename = $_REQUEST['zonename'];
 		$zonetype = $_REQUEST['zonetype'];
 	}
 	$zonename = addslashes($zonename);
 	$zonetype = addslashes($zonetype);
-	$zone = new Zone($db,$zonename,$zonetype,$config);
+	$zone = new Zone($zonename,$zonetype);
 	if($zone->error){
-	print "<font color=\"red\">" . $user->error . "</font>\n";
+		print "<font color=\"red\">" . $user->error . "</font>\n";
 	}else{
 		$title = "Last logs for " . $zone->zonename;
-		$content = '
+		$content = "";
+		// if $deleteall, delete & insert a "deleted" line in logs
+		// maybe only admin should be able to delete logs... ?
+		if((isset($_REQUEST) && $_REQUEST['deleteall']) ||
+			(!isset($_REQUEST) && $deleteall == 1)){
+			if($zone->zoneLogDelete()){
+				$content = '<font color="red">' . $zone->error . '</font>';
+			}
+		}
+		
+		$content .= '
 		<table border="0" width="100%">' .
 		$zone->zoneLogs("loghighlight","loglowlight") . 
-		'</table>';
+		'</table>
+		<div align="center">
+		<form action="' . $PHP_SELF . '" method="get">
+		<input type="hidden" name="deleteall" value="1">
+		<input type="hidden" name="idsession" value="' . $idsession . '">
+		<input type="hidden" name="zonename" value="' . $zonename . '">
+		<input type="hidden" name="zonetype" value="' . $zonetype . '">		
+		<input type="submit" name="deletebutton" value="Delete all logs">
+		</form></div>';
 	
 		print $html->box($title,$content);
 	}

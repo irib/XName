@@ -18,7 +18,6 @@ include 'libs/zone.php';
 include 'libs/primary.php';
 include 'libs/secondary.php';
 
-
 // **********************************************************
 // Utilities 
 
@@ -97,24 +96,23 @@ $message
  *@return int random number
  */
 function randomID(){
-	mt_srand((double)microtime()*1000000);
-	$result = mt_rand();
-	$result .= mt_rand();
-	$result .= mt_rand();
-	return $result;
+        $datetime = md5(date("Y-m-d H:i:s"));
+        $ip = md5(getenv("REMOTE_ADDR"));
+        $session = md5($datetime . $ip);
+	return $session;
 }
 
 // **********************************************************
 // DB utilities
 
-// function countSecondary($db)
+// function countSecondary()
 /**
  * Count number of secondary zones currently hosted
  *
- *@param string $db current database
  *@return int number of zones or N/A in case of error
  */
-function countSecondary($db){
+function countSecondary(){
+		global $db;
 	$query = "SELECT count(*) FROM dns_confsecondary";
 	$res = $db->query($query);
 	$line = $db->fetch_row($res);
@@ -126,14 +124,14 @@ function countSecondary($db){
 }
 
 
-// function countPrimary($db)
+// function countPrimary()
 /**
  * Count number of primary zones currently hosted
  *
- *@param string $db current database
  *@return int number of zones or N/A in case of error
  */
-function countPrimary($db){
+function countPrimary(){
+	global $db;
 	$query = "SELECT count(*) FROM dns_confprimary";
 	$res = $db->query($query);
 	$line = $db->fetch_row($res);
@@ -210,7 +208,7 @@ function checkIP($string){
 
 // function checkDomain($string)
 /**
- * Check if zone name has only valid char, without dot as 1st char
+ * Check if  name has only valid char, without dot as 1st char
  *
  *@param string $string zone name to be checked
  *@return int 1 if valid, 0 else
@@ -228,6 +226,27 @@ function checkDomain($string){
 	return $result;
 }
 
+// function checkZone($string)
+/**
+ * Check if zone name has only valid char, without dot as 1st char
+ * Zone name must have only [a-z] char at the end.
+ *@param string $string zone name to be checked
+ *@return int 1 if valid, 0 else
+ */
+function checkZone($string){
+	$string = strtolower($string);
+	// only specified char AND only one . (no sub-zones)
+	if((strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-.") !=
+	strlen($string)) || (strpos('0'.$string,".") == FALSE)||
+	(strpos('0'.$string,".") == 1) || !preg_match("/[a-z]$/i",$string)){
+		$result = 0;
+	}else{
+		$result = 1;
+	}
+	return $result;
+}
+
+
 // function checkName($string)
 /**
  * Check if name has only valid char
@@ -238,7 +257,7 @@ function checkDomain($string){
 function checkName($string){
 	$string = strtolower($string);
 	// only specified char 
-	if(strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-") !=
+	if(strspn($string, "0123456789abcdefghijklmnopqrstuvwxyz-*") !=
 	strlen($string)){
 		$result = 0;
 	}else{
@@ -278,20 +297,7 @@ function checkPrimary($string){
  */
 function checkEmail($string){
 	$result = 1;
-	// a @ in the mail, not in first place
-	if(strpos("!" . $string, '@') <= 0){
-		$result = 0;
-	}else{
-		// a @ in the mail, not at the end
-		if(strpos($string, '@') == strlen($string) -2){
-			$result = 0;
-		}else{
-			// no . before the @
-			if(strpos($string, '.') < strpos($string, '@')){
-				$result = 0;
-			}
-		}	
-	}
+	if(!ereg("^.+@.+\\..+$", $string)) $result = 0;
 	return $result;
 }
 
@@ -322,14 +328,9 @@ function vrfyEmail($string){
  *@param string $zone zone name to dig
  *@return string effective status or "connection timed out" or "unknown problem"
  */
-function checkDig($server,$zone){
-
-	// quite awful...
-//	if(!isset($config)){
-//		$config = new Config();
-//	}
-	
-	$result = `/bin/dig soa '$zone' @'$server'`;	
+function checkDig($server,$zone){	
+	global $config;
+	$result = `$config->bindig soa '$zone' @'$server'`;
 
 	// check if status:*
 	// return *
@@ -359,7 +360,8 @@ function checkDig($server,$zone){
  *@return string serial number of zone or "not availabl"
  */
 function DigSerial($server,$zone){
-	$result = `/bin/host -t soa '$zone' '$server'`;
+	global $config;
+	$result = `$config->binhost -t soa '$zone' '$server'`;
 	if(ereg("try again",$result)){
 		return $result;
 	}else{
@@ -383,7 +385,8 @@ function DigSerial($server,$zone){
  *@return string dig result
  */ 
 function zoneDig($server,$zone){
-	$result = `/bin/dig axfr '$zone' @'$server'`;
+	global $config;
+	$result = `$config->bindig axfr '$zone' @'$server'`;
 	return $result;
 }
 
@@ -425,8 +428,7 @@ function retrieveArgs($name, $httpvars){
  *@return int number of seconds
  */
 function diffDate($date){
-	// check if $date - now <= 30mn
-	// $date : YYYY MM DD HH mm
+	// $date : YYYY MM DD HH mm ss
 	$year = strftime("%Y");
 	$month = strftime("%m");
 	
@@ -473,6 +475,43 @@ function diffDate($date){
 	return $now;
 	
 	}
+	
+	
+// Function timestampToDate($timestamp)
+	/**
+	 * Returns epoch timestamp formated into YYYYMMDDHHmmss
+	 *
+	 *@return int timestamp formated into YYYYMMDDHHmmss
+	 */
+	Function timestampToDate($timestamp){
+		$datearray = getdate($timestamp);
+		$year = $datearray['year'];
+		$month = $datearray['mon'];
+		$day = $datearray['mday'];
+		$hour = $datearray['hours'];
+		$min = $datearray['minutes'];
+		$sec = $datearray['seconds'];
+		if($day < 10){
+			$day = "0" . $day;
+		}
+		if($month < 10){
+			$month = "0" . $month;
+		}
+		if($hour < 10){
+			$hour = "0" . $hour;
+		}
+		if($min < 10){
+			$min = "0" . $min;
+		}
+		if($sec < 10){
+			$sec = "0" . $sec;
+		}
+		
+		$result = $year.$month.$day.$hour.$min.$sec;
+
+		return $result;
+	}
+	
 	
 // *******************************************************
 //	Function getSerial($previous)

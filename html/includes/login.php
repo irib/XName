@@ -7,10 +7,12 @@ if($user->authenticated != 1){
 		$content = "<font color=\"red\">" . $user->error . "</font><br />\n";
 	}	
 
-	$content .= '
-	Log in, or <a href="createuser.php" class="linkcolor">create a new
-	user</a><p />
-	<form method="post" action="index.php">login: <br /><div align=center><input
+	if($config->public){
+		$content .= '
+		Log in, or <a href="createuser.php" class="linkcolor">create a new
+		user</a><p />';
+	}
+	$content .= '<form method="post" action="index.php">login: <br /><div align=center><input
 	type="text" name="login" /></div><br />
 	password: <br /><div align=center><input type="password" name="password"
 	/></div><br />
@@ -30,6 +32,43 @@ if($user->authenticated != 1){
 	$content = '<div align="center">
 	<a href="user.php' . $link . '" class="linkcolor">Change 
 	your preferences</a><p />
+	';
+	if($config->usergroups){
+		$usergrouprights = $group->getGroupRights($user->userid);
+		if(!notnull($user->error)){
+			switch ($usergrouprights){
+				case '0':
+					$content .= $user->error;
+					break;
+				case 'A':
+					$content .= 	'
+					<a href="group.php' . $link . '" class="linkcolor">Administrate
+					your group</a>';
+					if($config->userlogs){
+						$content .= '<br /><a href="userlogs.php' . $link . '"
+						class="linkcolor">View group logs</a>';
+					}
+					$content .= '<p />
+					';
+					break;
+				case 'R':
+					$content .= 'You have read-only access <p />';
+					break;
+				case 'W':
+					$content .= 'You have read/write access <p />';
+					break;
+				default:
+					$content .= '<font color="red">ERROR: bad group
+					rights</font><p />';
+			}
+		}else{
+			$content .= '<font color="red">ERROR: ' . $user->error . "</font>
+			<p />";
+		}
+	}
+	$content .= '
+	<a href="deleteuser.php' . $link . '" class="linkcolor">Delete your
+	account</a><p />
 	<a href="index.php' . $link . '&logout=1">Logout</a>
 	</div>
 	';
@@ -46,13 +85,18 @@ if($user->authenticated != 1){
 	</table></div>';
 	print $html->box($title,$content);		
 
-		// list all other zones for same email address
-	$allzones = $user->listallzones();
+	// list all other zones for current user
+	if($config->usergroups){
+		$allzones = $group->listallzones();
+		$user->error=$group->error;
+	}else{
+		$allzones = $user->listallzones();
+	}
 	if(!notnull($user->error)){
 		$content ='<table border="0" width="100%">';
 		while($otherzone= array_pop($allzones)){
 			// TODO : NEW ZONE
-			$newzone = new Zone($db,$otherzone[0],$otherzone[1],$config);
+			$newzone = new Zone($otherzone[0],$otherzone[1]);
 			$status = $newzone->zonestatus();
 			switch($status) {
 				case 'I':

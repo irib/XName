@@ -1,10 +1,21 @@
 <?
+/*
+	This file is part of XName.org project
+	See	http://www.xname.org/ for details
+	
+	License: GPLv2
+	See LICENSE file, or http://www.gnu.org/copyleft/gpl.html
+	
+	Author(s): Yann Hirou <hirou@xname.org>
+
+*/
+
 require "libs/xname.php";
 
 $config = new Config();
 
 // protect variables for db usage
-if((isset($_REQUEST)){
+if(isset($_REQUEST)){
 	if(isset($_REQUEST['idsession'])){
 		$idsession=$_REQUEST['idsession'];
 	}
@@ -27,9 +38,9 @@ if(isset($password)){
 }
 
 
-$db = new Db($config);
+$db = new Db();
 
-$user = new User($db,$login,$password,$idsession);
+$user = new User($login,$password,$idsession);
 
 if(!notnull($idsession)){
 	$idsession=$user->idsession;
@@ -77,7 +88,7 @@ if(!$user->error && $user->authenticated==1){
 	}
 
 }else{
-	print "ERROR login - $login & $password";
+	print "ERROR login - $login & $password - " . $user->error;
 }
 
 ?>

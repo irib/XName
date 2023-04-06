@@ -30,22 +30,20 @@
 class Db {
   var $dbh, $sh;
   var $result;
-  var $config;
   
   /**
    * Class constructor. Connects to DB 
    *
    *@access public
-   *@param object Config $config Config object
    *@return object DB database object
    */
-  Function Db($config) {
+  Function Db() {
+  	global $config;
     if($config->dbpersistent){
       $this->dbh = $this->pconnect($config->dbhost . ":" . $config->dbport, $config->dbuser, $config->dbpass, $config->dbname);
     }else{
       $this->dbh = $this->connect($config->dbhost, $config->dbuser, $config->dbpass, $config->dbname);
     }
-  	$this->config = $config;
     return $this->dbh;
   }
   
@@ -142,8 +140,9 @@ class Db {
    *@return int 1 if error, 0 else
    */
   Function error(){
+  	global $config;
     if(mysql_errno()){
-      mailer($this->config->emailfrom,$this->config->emailto,'XName: Error
+      mailer($config->emailfrom,$config->emailto,'XName: Error
 	  MYSQL','',mysql_errno() . ": " . mysql_error() . "\n");
 	  return 1;
     }else{

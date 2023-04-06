@@ -1,14 +1,21 @@
+XName INSTALL for v2.1.0
 
+WARNING: use these instruction for XName fresh installation only.
+See MIGRATE file for migration from an older version of XName.
 
 XName Database 
 ===================
+
+Firsly, go into the XName directory.
 
 - edit sql/creation.sql
 	change database name xnamedev for xname - or whatever name you want -
 	in the two first lines
 - run sql code
 	$ mysql -upoweruser -p < sql/creation.sql
-- create mysql user for xname - xnameuser for example
+
+
+Database is now installed.
 
 
 XName web interface
@@ -16,10 +23,11 @@ XName web interface
 
 - edit html/libs/config.php
 	change all items accordingly with your site configuration
-	dig named-checkzone host have to be present on your computer.
-	You should have them if you're using Bind.
 - edit html/disclaimer.php
 	change the disclaimer text to your one
+
+Be careful, programs dig, host and named-checkzone have to be available from
+your web server. Paths are configurable in the html/libs/config.php file.
 
 If you want to use your own design instead of XName.org's one,
 simply change each html/*.php file, accordingly 
@@ -32,14 +40,25 @@ XName DNS file generator & log insert
 
 Firstly, you have to install bind. Tested on v9.2.1.
 
-- edit /etc/named.conf, configure general options, suppress eventually 
-everything at the end concerning local zones. 
+- edit your named.conf file (should be /etc/named.conf), configure general 
+options, suppress eventually everything at the end concerning local zones. 
+Be sure you've got a correctly running bind.
+
+It would be preferable to use a separate log file instead of daemon.log 
+or something like that.
+
 You have now a clean named header file. Just copy it into /etc/bind/headers
-or somewhere else (to be configured in bin/config.pl).
+or somewhere else (to be configured in bin/config.pl as $NAMED_CONF_HEADERS).
 
-- edit bin/config.pl, modify vars.
+- edit bin/config.pl, and modify all vars to fit your needs.
+Be sure named-checkconf is available on your system.
 
-- modify crontab
+If you don't use a scheduler - ie in bin/config.pl you don't have
+$SCHEDULER_RUN_AS_DAEMON=1; 
+modify crontab.
+
+WARNING: use of sheduler is HIGHLY recommended. 
+
 Add in crontab a line for insertlogs.pl, every 10 mn
 Add a crontab line for delete.pl, every hour 
 Add a crontab line for generate.pl, every hour 5 mn after delete.pl
@@ -50,9 +69,16 @@ Add a crontab line for generate.pl, every hour 5 mn after delete.pl
 30 *   * * *   root    /home/xname/bin/delete.pl
 35 *    * * *   root    /home/xname/bin/generate.pl
 
-- install Date::Parse perl module
- $ perl -MCPAN -e shell
- cpan> install Date::Parse
+
+Else, if you run the scheduler, just run as root bin/scheduler.pl.
+See doc/scheduler.txt for details.
+
+Database initialization
+=======================
+
+run bin/install.pl and answer questions.
+Run it once per server you want to add.
+
 
 
 I Want to contribute
@@ -60,5 +86,6 @@ I Want to contribute
 
 Report any bug to bugs@xname.org
 Report any idea to xname@xname.org
-Report any patch to xname@xname.org
+Report any patch to xname@xname.org, after having read doc/RULES
 See http://www.xname.org/contribute for further contribution.
+

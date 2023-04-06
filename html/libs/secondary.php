@@ -31,22 +31,21 @@ class Secondary extends Zone {
 	 * Class constructor - initialize all secondary data from DB
 	 *
 	 *@access public
-	 *@param object Db $db DB
 	 *@param string $zonename name of zone
 	 *@param string $zonetype type of zone (necessary secondary...)
 	 *@param object User $user Current user
-	 *@param object Config $config Config object
 	 */
 	 
-	Function Secondary($db,$zonename,$zonetype,$user,$config){
-		$this->Zone($db,$zonename,$zonetype,$config);
+	Function Secondary($zonename,$zonetype,$user){
+		global $db;
+		$this->Zone($zonename,$zonetype);
 		
 		$query = "SELECT masters,xfer,serial
 		FROM dns_confsecondary WHERE zoneid='" . $this->zoneid . "'";
-		$res = $this->db->query($query);
-		$line = $this->db->fetch_row($res);
+		$res = $db->query($query);
+		$line = $db->fetch_row($res);
 
-		if($this->db->error()){
+		if($db->error()){
 			$this->error="Trouble with DB";
 			return 0;
 		}
@@ -64,14 +63,15 @@ class Secondary extends Zone {
 	}
 
 
-//	Function printModifyForm()
+//	Function printModifyForm($advanced)
 	/**
 	 * Print HTML form pre-filled with current data
 	 *
 	 *@access public
+	 *@param int $advanced 0 or 1 if advanced interface needed or not
 	 *@return string HTML form pre-filled
 	 */
-	Function printModifyForm(){
+	Function printModifyForm($advanced){
 		$this->error="";
 		$result = "";
 
@@ -148,6 +148,7 @@ class Secondary extends Zone {
 	 *@return string HTML output
 	 */
 	Function PrintModified($params){
+		global $db, $config;
 		list($primary,$xfer,$xferip)=$params;
 		$content = "";
 		
@@ -228,7 +229,7 @@ class Secondary extends Zone {
 						}
 						$content .= '.</font> This is a non-blocking warning, it will
 						not prevent your zone to be registered - but correct
-						this error or ' . $this->config->sitename . ' will not be able to serve your zone
+						this error or ' . $config->sitename . ' will not be able to serve your zone
 						correctly.<br />';
 					}
 				}
@@ -287,36 +288,31 @@ class Secondary extends Zone {
 			if(!$this->updateDb($primary,$xferip)){		
 				$content .= $this->error;
 			}else{
-				// instert un dns_modified to be generated & reloaded
-				$query = "select count(*) from dns_modified where zoneid='" .
-				$this->zoneid  . "'";
-				$res = $this->db->query($query);
-				$line = $this->db->fetch_row($res);
-				if($line[0] == 0){
-					$query = "INSERT INTO dns_modified (zoneid) values ('" . $this->zoneid . "')";
-					$res = $this->db->query($query);
-				}
-					if($this->db->error()){
-						$result .= '<p><font color="red">Error: Trouble with DB</font>
-						Your zone will not be available at next reload. Please come back 
-						later to modify it again.</p>';
-					}else{
-	
+				// flag status='M' to be generated & reloaded
+				$query = "UPDATE dns_zone SET status='M' WHERE 
+				id='" . $this->zoneid . "'";
+				$res = $db->query($query);
+				
+				if($db->error()){
+					$result .= '<p><font color="red">Error: Trouble with DB</font>
+					Your zone will not be available at next reload. Please come back 
+					later to modify it again.</p>';
+				}else{
 					$content .= '
 					<p />
 					<div class=boxheader>Zone successfully modified on
-					' . $this->config->sitename . '.</div>
+					' . $config->sitename . '.</div>
 					<p />
 				
 					Be sure to :<p />
 					- add following line to your zone file (with trailing dots) :<p />
 					<pre>
-' . $this->zonename . '.	IN	NS	' . $this->config->nsname . '.
+' . $this->zonename . '.	IN	NS	' . $config->nsname . '.
 				</pre>
 				<p />
 				
 				- modify your DNS configuration file as follow, to allow
-				transfer to ' . $this->config->nsname . ' (if you run your primary name server
+				transfer to ' . $config->nsname . ' (if you run your primary name server
 				with bind):
 				<p />
 				<pre>
@@ -328,13 +324,13 @@ zone "' . $this->zonename . '" {
 	type master;
 	file "' . $this->zonename . '";
 	allow-transfer {
-		' . $this->config->nsaddress . ';
+		' . $config->nsaddress . ';
 	};
 };
 </pre>
 					<p />
 					- Delegate zone ' . $this->zonename . ' to your primary 
-					name server and ' . $this->config->nsname . '.
+					name server and ' . $config->nsname . '.
 				
 					<p />
 				
@@ -344,8 +340,8 @@ zone "' . $this->zonename . '" {
 					<p />
 
 					';
-				}
-			}
+				} // else no error
+			} // else updatedb
 		}else{
 			// $error 
 			// nothing has been modified, go back and solve troubles
@@ -369,6 +365,7 @@ zone "' . $this->zonename . '" {
 	 *@return int 1 if success, 0 if error
 	 */
 	Function updateDb($primary,$xferip){
+		global $db;
 
 		// 27/03/02 not possible to change email address in this script
 
@@ -381,8 +378,8 @@ zone "' . $this->zonename . '" {
 			$query = "INSERT INTO dns_confsecondary (zoneid,masters,xfer)
 			VALUES('" . $this->zoneid . "','" . $primary . "','" . $xferip . "')";
 		}
-		$res = $this->db->query($query);
-		if($this->db->error()){
+		$res = $db->query($query);
+		if($db->error()){
 			$this->error="Trouble with DB";
 			return 0;
 		}

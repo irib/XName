@@ -25,19 +25,27 @@ class Primary extends Zone {
 	var $retry;
 	var $expiry;
 	var $minimum;
+	var $defaultttl;
 	var $xfer;
 	var $user;
 
 	var $mx;
+	var $mxttl;
 	var $ns;
+	var $nsttl;
 	var $a;
+	var $attl;
 	var $aip;
-	var $azone;
 	var $cname;
+	var $cnamettl;
 	var $dname;
+	var $dnamettl;
 	var $a6;
+	var $a6ttl;
 	var $aaaa;
+	var $aaaattl;
 	var $subns;
+	var $subnsttl;
 	var $subnsa;
 
 	
@@ -46,21 +54,20 @@ class Primary extends Zone {
 	 * Class constructor & data retrieval (use of Retrieve[Multi]Record)
 	 *
 	 *@access public
-	 *@param string $db DB
 	 *@param string $zonename zone name
 	 *@param string $zonetype zone type (must be 'M'aster)
 	 *@param string $user class member user for current user
-	 *@param object Config $config Config object
 	 */
-	Function Primary($db,$zonename,$zonetype,$user,$config){
-		$this->Zone($db,$zonename,$zonetype,$config);
+	Function Primary($zonename,$zonetype,$user){
+		global $db;
+		$this->Zone($zonename,$zonetype);
 
 		// fill in vars
-		$query = "SELECT serial, refresh, retry, expiry, minimum,xfer
+		$query = "SELECT serial, refresh, retry, expiry, minimum, defaultttl, xfer
 		FROM dns_confprimary WHERE zoneid='" . $this->zoneid . "'";
-		$res = $this->db->query($query);
-		$line = $this->db->fetch_row($res);
-		if($this->db->error()){
+		$res = $db->query($query);
+		$line = $db->fetch_row($res);
+		if($db->error()){
 			$this->error="Trouble with DB";
 			return 0;
 		}
@@ -90,48 +97,62 @@ class Primary extends Zone {
 		if($line[4]){
 			$this->minimum = $line[4];
 		}else{
-			$this->minimum = 86400;
+			$this->minimum = 10800;
 		}
-		$this->xfer = $line[5];
+		if($line[5]){
+			$this->defaultttl = $line[5];
+		}else{
+			$this->defaultttl = 86400;
+		}
+		
+		$this->xfer = $line[6];
 		$this->user=$user;
 		
 		// initialize arrays
 		$this->ns = array();
+		$this->nsttl = array();
 		$this->mx = array();
-		$this->azone=array();
+		$this->mxttl = array();
 		$this->dname = array();
+		$this->dnamettl = array();
 		$this->a = array();
+		$this->attl = array();
 		$this->aip = array();
 		$this->cname = array();
+		$this->cnamettl = array();
 		$this->a6 = array();
+		$this->a6ttl = array();
 		$this->aaaa = array();
+		$this->aaaattl = array();
 		$this->subns = array();
+		$this->subnsttl = array();
 		$this->subnsa = array();
 		
 		// fill in with records
-		$this->RetrieveRecords('NS',$this->ns);
-		$this->RetrieveRecords('MX',$this->mx);
-		$this->RetrieveRecords('AZONE',$this->azone);
-		$this->RetrieveRecords('DNAME',$this->dname);
-		$this->RetrieveMultiRecords('A',$this->a,$this->aip);
-		$this->RetrieveRecords('CNAME',$this->cname);
-		$this->RetrieveRecords('A6',$this->a6);
-		$this->RetrieveRecords('AAAA',$this->aaaa);
-		$this->RetrieveMultiRecords('SUBNS',$this->subns,$this->subnsa);
+		$this->RetrieveRecords('NS',$this->ns,$this->nsttl);
+		$this->RetrieveRecords('MX',$this->mx,$this->mxttl);
+		$this->RetrieveRecords('DNAME',$this->dname,$this->dnamettl);
+		$this->RetrieveMultiRecords('A',$this->a,$this->aip,$this->attl);
+		$this->RetrieveRecords('CNAME',$this->cname,$this->cnamettl);
+		$this->RetrieveRecords('A6',$this->a6,$this->a6ttl);
+		$this->RetrieveRecords('AAAA',$this->aaaa,$this->aaaattl);
+		$this->RetrieveMultiRecords('SUBNS',$this->subns,$this->subnsa,$this->subnsttl);
 	}
 	
 
 
 // *******************************************************
 	
-	//	Function printModifyForm()
+	//	Function printModifyForm($advanced)
 	/**
 	 * returns a pre-filled form to modify primary records
 	 *
 	 *@access public
+	 *@param int $advanced 0 or 1 if advanced interface needed or not
 	 *@return string HTML pre-filled form
 	 */
-	Function printModifyForm(){
+	Function printModifyForm($advanced){
+		global $config;
 		$this->error="";
 		$result = '';
 		
@@ -147,21 +168,82 @@ class Primary extends Zone {
 			 
 			<input type="hidden" name="modified" value="1">
 			';
+			// if advanced, say it to modified - in case
+			// of temporary use of advanced interface, not in
+			// user prefs.
+			if($advanced){ 
+				$result .= '<input type="hidden" name="advanced" value="1">
+				';
+			}
+			
+			
+			if($advanced){
+				// print global params ($TTL)
+				$result .= '
+				<div class="boxheader">Global params</div>
+				<table border="0" width="100%">
+				<tr><td colspan="2">The time to live is primarily used by
+				resolver when they cache RRs. The TTL describes how long a RR
+				can be cached before it should be discarded</td></tr>
+				<tr><td align="right">Default TTL</td><td><input type="text"
+				name="defaultttl" value="' . $this->defaultttl . '"></td></tr>
+				</table>
+				<p />
+				';
+				// print SOA params
+				$result .= '
+				<div class="boxheader">SOA Parameters</div>
+				<table border="0" width="100%">
+				<tr><td colspan="2">The refresh interval tells the slave how
+				often to check that its data are up to date.
+				<tr><td align="right">Refresh period</td><td><input type="text"
+				name="soarefresh" value="' .
+				$this->refresh . '"></td></tr>
+				<tr><td colspan="2">If the slave fails to reach the master name
+				server after the refresh period, then it starts trying to
+				connect every "retry" seconds.</td></tr>
+				<tr><td align="right">Retry interval</td><td><input type="text"
+				name="soaretry" value="' .
+				$this->retry . '"></td></tr>
+				<tr><td colspan="2">If the slave fails to  contact the master
+				server for "expire" seconds, the slave expires its data.
+				Expiration time should always be much larger than the retry and
+				refresh intervals.
+				<tr><td align="right">Expire time</td><td><input type="text"
+				name="soaexpire" value="' .
+				$this->expiry . '"></td></tr>
+				<tr><td colspan="2">Negative caching TTL controls how long other
+				servers will cache no-such-domain (NXDOMAIN) responses from this
+				server. The maximum time for negative caching is 3hours (10800s).</td></tr>
+				<tr><td align="right">negative caching TTL</td><td><input type="text"
+				name="soaminimum" value="' .
+				$this->minimum . '"></td></tr>
+				
+				
+				</table>
+				<p />';
+			}
 			
 			$result .= '
 			<div class="boxheader">Name Server (NS) records</div>
 			<table border="0">
 				<tr><td colspan="3">NS records are names (and not IP addresses). You have to use the full
 				qualified name of the computer, with the trailing dot at the end (ex:
-				' . $this->config->nsname . '.).</td></tr>
+				' . $config->nsname . '.).</td></tr>
 				';
 			
 			$xnamepresent = 0;
 			$keys = array_keys($this->ns);
 			while($key = array_shift($keys)){
-				$result .= '<tr><td align="right">NS</td><td>' . $key . '</td>
-				<td>';
-					if(strcmp($key, $this->config->nsname . '.')){
+				$result .= '<tr>
+				<td align="right">NS</td><td>' . $key . '</td>
+				';
+				if($advanced){
+					$result .= '<td align="right">TTL: </td>
+					<td>' . $this->nsttl[$key] . '</td>';
+				}
+				$result .= '<td>';
+					if(strcmp($key, $config->nsname . '.')){
 						$deletecount++;
 						$result .= '<input type="radio" name="delete' .
 						 $deletecount .
@@ -173,15 +255,36 @@ class Primary extends Zone {
 			}
 			if(!$xnamepresent){
 				$result .= '
-				<tr><td align="right">Mandatory NS:</td><td><input type="hidden"
-				name="ns1" value="' . $this->config->nsname . '.">' . $this->config->nsname . '.</td><td></td></tr>
+				<tr>
+				<td align="right">Mandatory NS:</td><td><input type="hidden"
+				name="ns1" value="' . $config->nsname . '.">' . $config->nsname . '.</td>
+				';
+				if($advanced){
+					$result .= '<td align="right">TTL: </td>
+					<td><input type="text" name="nsttl1" size="6" value="default"></td>';
+				}
+				$result .= '<td></td></tr>
 				';
 			}
 			$result .= '
-				<tr><td align="right">New NS (1): </td><td><input type="text"
-				name="ns2"></td><td></td></tr>
-				<tr><td align="right">New NS (2): </td><td><input type="text"
-				 name="ns3"></td><td></td></tr>
+				<tr>
+				<td align="right">New NS (1): </td><td><input type="text"
+				name="ns2"></td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="nsttl2" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
+				<tr>
+				<td align="right">New NS (2): </td><td><input type="text"
+				 name="ns3"></td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="nsttl3" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 			</table>
 
 			<p>
@@ -191,7 +294,7 @@ class Primary extends Zone {
 				You have to use the full
 				qualified name of the computer, with the trailing dot at the end
 				 (ex:
-				mail.' . $this->config->domainname . '.). You also have to specify a preference number. 
+				mail.' . $config->domainname . '.). You also have to specify a preference number. 
 				If you have many MX, the
 				default one will be the one with the lower preference number.
 				</td></tr>
@@ -203,7 +306,13 @@ class Primary extends Zone {
 				$deletecount++;
 				$result .= '<tr><td align="right">MX: </td>
 						<td>Pref: ' . $this->mx[$key] . '</td>
-						<td>' . $key . '</td>
+						<td>' . $key . '</td>';
+				if($advanced){
+					$result .= '<td align="right">TTL: </td>
+					<td>' . $this->mxttl[$key] . '</td>
+					';
+				}
+				$result .= '
 						<td><input type="radio" name="delete' . $deletecount .
 						'" value="mx(' . $key . ')">Delete</td></tr>
 				';
@@ -214,27 +323,52 @@ class Primary extends Zone {
 				<tr><td align="right">New MX (1): </td>
 						<td>Pref: <input type="text" size="3" maxlength="3"
 						 name="pref1"></td>
-						<td><input type="text" name="mx1"></td><td></td></tr>
+						<td><input type="text" name="mx1"></td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="mxttl1" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 				<tr><td align=right>New MX (2): </td>
 						<td>Pref: <input type="text" size="3" maxlength="3"
 						 name="pref2"></td>
-						<td><input type="text" name="mx2"></td><td></td></tr>
+						<td><input type="text" name="mx2"></td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="mxttl2" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 			</table>
 
 			<p>
 			<div class="boxheader">Address (A) records</div>
 			<table border="0">
 				<tr><td colspan="4">A records are association of a name and an IP address. The name
-				is what you want to have before ' . $this->zonename . ', 
-				like www for www.' . $this->config->domainname . '.</td></tr>
+				is unqualified, i.e. what you want to have before ' . $this->zonename . ', 
+				like www for www.' . $config->domainname . ' except for the name of the domain itself
+				which is qualified, i.e. ' . $config->domainname . '.<br />
+				If you want to add an A record for the zone itself, use fully qualified zone name 
+				(with a trailing dot) as name.<br />
+				If you want to do Round Robin on A records, enter different records with same name 
+				but different IPs.
+				</td></tr>
 			';
 
 			$counter=0;
 			while($this->a[$counter]){
 				$deletecount++;
+				// if advanced, print TTL fields
 				$result .= '<tr><td align="right">A: </td>
 						<td>Name:  ' . $this->a[$counter] . '</td>
-						<td> IP: ' . $this->aip[$counter] . '</td>
+						<td> IP: ' . $this->aip[$counter] . '</td>';
+				if($advanced){
+					$result .= '<td align="right">TTL: </td>
+					<td>' . $this->attl[$counter] . '</td>
+					';
+				}
+				$result .= '
 						<td><input type="radio" name="delete' . $deletecount .
 						'" value="a(' . $this->a[$counter] . '/' .
 						$this->aip[$counter] . ')">Delete</td></tr>
@@ -252,21 +386,23 @@ class Primary extends Zone {
 			$result .= '
 				<tr><td align="right">New A (1): </td>
 						<td>Name <input type="text" name="aname1"></td>
-						<td>IP <input type="text" name="a1"></td><td></td></tr>
+						<td>IP <input type="text" name="a1"></td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="attl1" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 				<tr><td align="right">New A (2): </td>
 						<td>Name <input type="text" name="aname2"></td>
-						<td>IP <input type="text" name="a2"></td><td></td></tr>
+						<td>IP <input type="text" name="a2"></td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="attl2" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 
-				<tr><td colspan="4">Under some conditions, you may want to add 
-				and A record for the zone itself - for example to be able to browse
-				your web site using http://yoursite.com instead of http://www.yoursite.com.
-				</td></tr>
-				<tr><td align="right" colspan="2">A for zone (leave empty for none):</td>
-				<td colspan="2">IP <input type="text" name="azone"
-				 value="';
-				 
-				 $keys = array_keys($this->azone);
-				  $result .= $keys[0] . '"></td></tr>
 			</table>
 
 			<p>
@@ -286,7 +422,13 @@ class Primary extends Zone {
 				$deletecount++;
 				$result .= '<tr><td align="right">CNAME: </td>
 						<td>Alias: ' . $key . '</td>
-						<td> Name: ' . $this->cname[$key] . '</td>
+						<td> Name: ' . $this->cname[$key] . '</td>';
+				if($advanced){
+					$result .= '<td align="right">TTL: </td>
+					<td>' . $this->cnamettl[$key] . '</td>
+					';
+				}
+				$result .= '
 						<td><input type="radio" name="delete' . $deletecount . 
 						'" value="cname(' . $key . ')">Delete</td></tr>
 				';
@@ -296,11 +438,23 @@ class Primary extends Zone {
 				<tr><td align="right">New CNAME (1): </td><td>Alias <input
 				 type="text" size="10" name="cname1"></td>
 						<td>Name (A record) <input type="text" name="cnamea1">
-						</td><td></td></tr>
+						</td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="cnamettl1" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 				<tr><td align="right">New CNAME (2): </td><td>Alias 
 				<input type="text" size="10" name="cname2"></td>
 						<td>Name (A record) <input type="text" name="cnamea2">
-						</td><td></td></tr>
+						</td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="cnamettl2" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 			</table>
 
 
@@ -314,7 +468,7 @@ class Primary extends Zone {
 				these zones are defined on the nameserver you choose.
 				<br />
 				For example, if you want to have a new zone myzone.mydomain.com, you can
-				create a new zone on ' . $this->config->sitename . ' "myzone.mydomain.org", and configure it as
+				create a new zone on ' . $config->sitename . ' "myzone.mydomain.org", and configure it as
 				you wish.<br />
 				Your new zone name is <b>necessary</b> under ' . $this->zonename . '., it 
 				can not have a dot \'.\' in it. <br />
@@ -328,7 +482,13 @@ class Primary extends Zone {
 				$result .= '<tr><td align="right">zone: </td>
 						<td>Zone: ' . $this->subns[$counter] . '</td>
 						<td> NS: ' . $this->subnsa[$counter] . '</td>
-						<td><input type="radio" name="delete' . $deletecount . 
+						';
+				if($advanced){
+					$result .= '<td align="right">TTL: </td>
+					<td>' . $this->subnsttl[$counter] . '</td>
+					';
+				}
+				$result .= '<td><input type="radio" name="delete' . $deletecount . 
 						'" value="subns(' . $this->subns[$counter] . '/' . 
 						$this->subnsa[$counter] . ')">Delete</td></tr>
 				';
@@ -339,11 +499,23 @@ class Primary extends Zone {
 				<tr><td align="right">New sub zone (1): </td><td>name <input
 				 type="text" size="10" name="subns1"></td>
 						<td>NS <input type="text" name="subnsa1">
-						</td><td></td></tr>
+						</td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="subnsttl1" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 				<tr><td align="right">New sub zone (2): </td><td>name 
 				<input type="text" size="10" name="subns2"></td>
 						<td>NS <input type="text" name="subnsa2">
-						</td><td></td></tr>
+						</td>';
+			if($advanced){
+				$result .= '<td align="right">TTL: </td>
+				<td><input type="text" name="subnsttl2" size="6" value="default"></td>
+				';
+			}
+			$result .= '<td></td></tr>
 			</table>
 
 
@@ -379,8 +551,7 @@ $result .= '
 			<input type="submit" value="Generate zone configuration">
 			<input type="reset">
 			</form>
-		';		
-		
+		';
 		
 		return $result;
 	}
@@ -394,35 +565,41 @@ $result .= '
 	 * and outputs result & config file
 	 *
 	 *@access public
-	 *@param array $params contains $VARS ($HTTP_GET_VARS or POST), $azone and $xferip
+	 *@param array $params contains $VARS ($HTTP_GET_VARS or POST), $xferip and SOA params
 	 *@return string HTML result
 	 */
 	Function PrintModified($params){
-		list($VARS,$azone,$xferip)=$params;
+		global $db;
+		global $config;
+		list($VARS,$xferip,$defaultttl,$soarefresh,$soaretry,$soaexpire,$soaminimum)=$params;
 
 		$this->error="";
 		$result = '';
 
 		$delete = retrieveArgs("delete", $VARS);
 		$ns = retrieveArgs("ns", $VARS);
+		$nsttl = retrieveArgs("nsttl",$VARS);
 		$mx = retrieveArgs("mx", $VARS);
+		$mxttl = retrieveArgs("mxttl",$VARS);
 		$pref = retrieveArgs("pref", $VARS);
 		$aname = retrieveArgs("aname", $VARS);
 		$a = retrieveArgs("a", $VARS);
+		$attl = retrieveArgs("attl",$VARS);
 		$cname = retrieveArgs("cname", $VARS);
 		$cnamea = retrieveArgs("cnamea", $VARS);
+		$cnamettl = retrieveArgs("cnamettl",$VARS);
 		$subns = retrieveArgs("subns", $VARS);
 		$subnsa = retrieveArgs("subnsa", $VARS);
-
-		$result .= $this->Delete($delete);
-		$result .= $this->AddNSRecord($ns);
-		$result .= $this->AddMXRecord($mx,$pref);
-		$result .= $this->AddARecord($a,$aname);
-		$result .= $this->AddCNAMERecord($cname,$cnamea);
-		$result .= $this->AddAZONERecord($azone);
-		$result .= $this->AddSUBNSRecord($subns,$subnsa);
+		$subnsttl = retrieveArgs("subnsttl",$VARS);
 		
-		if($this->UpdateSOA($xferip) == 0){
+		$result .= $this->Delete($delete);
+		$result .= $this->AddNSRecord($ns,$nsttl);
+		$result .= $this->AddMXRecord($mx,$pref,$mxttl);
+		$result .= $this->AddARecord($a,$aname,$attl);
+		$result .= $this->AddCNAMERecord($cname,$cnamea,$cnamettl);
+		$result .= $this->AddSUBNSRecord($subns,$subnsa,$subnsttl);
+		
+		if($this->UpdateSOA($xferip,$defaultttl,$soarefresh,$soaretry,$soaexpire,$soaminimum) == 0){
 			$result .= '<font color="red">Error: ' . $this->error . '</font><br />';		
 		}else{
 			$result .= '
@@ -433,7 +610,7 @@ $result .= '
 			// - generate zone file in /tmp/zonename
 			$this->generateConfigFile();
 			// - do named-checkzone $zonename /tmp/zonename and return result
-			$checker = "/bin/named-checkzone " . $this->zonename . " /tmp/" . $this->zonename.".".
+			$checker = "$config->binnamedcheckzone " . $this->zonename . " /tmp/" . $this->zonename.".".
 			$this->zonetype;
 			$check = `$checker`;
 			// if ok
@@ -455,16 +632,11 @@ $result .= '
 				</td></tr></table>
 				</p>&nbsp;<p />";
 				unlink("/tmp/" . $this->zonename.".".$this->zonetype);
-				// instert in dns_modified to be generated & reloaded
-				$query = "select count(*) from dns_modified where zoneid='" .
-				$this->zoneid  . "'";
-				$res = $this->db->query($query);
-				$line = $this->db->fetch_row($res);
-				if($line[0] == 0){
-					$query = "INSERT INTO dns_modified (zoneid) values ('" . $this->zoneid . "')";
-					$res = $this->db->query($query);
-				}
-				if($this->db->error()){
+				// flag as 'M'odified to be generated & reloaded
+				$query = "UPDATE dns_zone SET 
+					status='M' WHERE id='" . $this->zoneid . "'";
+				$res = $db->query($query);
+				if($db->error()){
 					$result .= '<p><font color="red">Error: Trouble with DB</font>
 					Your zone will not be available at next reload. Please come back 
 					later to modify it again.</p>';
@@ -477,7 +649,7 @@ $result .= '
 				<p />
 				<pre>' . $check . '</pre>
 				If you think it is an engine error, please <a
-				href="mailto:' . $this->config->contactemail . '"
+				href="mailto:' . $config->contactemail . '"
 				>contact administrator</a>.
 				<p />
 				For your information, trouble occured when checking following file:
@@ -508,6 +680,7 @@ $result .= '
 	 *@return string text of result (Deleting XXX record... Ok<br />)
 	 */
 	Function Delete($delete){
+		global $db;
 		$result = '';
 		
 		// for each delete entry, delete item cname(alias), a(name), ns(name),
@@ -579,8 +752,8 @@ $result .= '
 						break;
 				}
 			}
-			$res = $this->db->query($query);
-			if($this->db->error()){
+			$res = $db->query($query);
+			if($db->error()){
 				$this->error="Trouble with DB";
 				$result .= ' <font color="red">Trouble with DB</font><br />';
 			}else{
@@ -593,28 +766,35 @@ $result .= '
 
 // *******************************************************
 
-//	Function AddMXRecord($mx,$pref)
+//	Function AddMXRecord($mx,$pref,$ttl)
 	/**
 	 * Add an MX record to the current zone
 	 *
 	 *@access private
 	 *@param string $mx name of MX 
 	 *@param int $pref preference value for this MX
+	 *@param int $ttl ttl value for this record
 	 *@return string text of result (Adding MX Record... Ok)
 	 */
-	Function AddMXRecord($mx,$pref){
+	Function AddMXRecord($mx,$pref,$ttl){
+		global $db;
 		$result = '';
 		// for each MX, add MX entry
 		$i = 0;
 		while(list($key,$value) = each($mx)){
 			// value = name
 			if($value != ""){
-				if(!checkDomain($value)){
+				if(!(checkDomain($value) || checkName($value))){
+					// check if matching A record exists ? NOT OUR JOB
 					$result .= '<font color="red">Error: bad MX name ' . 
 					stripslashes($value) . "</font><br />\n";
 					$this->error = "Data error";
 				}else{
-					// if no trailing ".", add one
+					// if checkName, add zone.
+					if(checkName($value)){
+						$value .= "." . $this->zonename;
+					}
+					// if no trailing ".", add one. 
 					if(strrpos($value, ".") != strlen($value) -1){
 						$value .= ".";
 					}
@@ -634,16 +814,21 @@ $result .= '
 						$query = "SELECT count(*) FROM dns_record WHERE 
 						zoneid='" . $this->zoneid . "' AND type='MX' 
 						AND val1='" . $value . "'";
-						$res = $this->db->query($query);
-						$line = $this->db->fetch_row($res);
+						$res = $db->query($query);
+						$line = $db->fetch_row($res);
 						if($line[0] == 0){
 							$result .= "Adding MX record " . 
 							stripslashes($value) . "...";
-							$query = "INSERT INTO dns_record (zoneid, type, val1, val2) 
+							if(!notnull($ttl[$i])){
+								$ttlval = "default";
+							}else{
+								$ttlval = $ttl[$i];
+							}
+							$query = "INSERT INTO dns_record (zoneid, type, val1, val2,ttl) 
 								VALUES ('" . $this->zoneid . "', 'MX', '" 
-								. $value . "', '" . $pref[$i] . "')";
-							$this->db->query($query);
-							if($this->db->error()){
+								. $value . "', '" . $pref[$i] . "','" . $ttlval . "')";
+							$db->query($query);
+							if($db->error()){
 								$result .= ' <font color="red">Trouble with
 								DB</font><br />';
 								$this->error = "Trouble with DB";
@@ -667,15 +852,17 @@ $result .= '
 
 // *******************************************************
 
-//	Function AddNSRecord($ns)
+//	Function AddNSRecord($ns,$ttl)
 	/**
 	 * Add an NS record to the current zone
 	 *
 	 *@access private
 	 *@param string $ns name of NS
+	 *@param int $ttl ttl value for this record
 	 *@return string text of result (Adding NS Record... Ok)
 	 */
-	Function AddNSRecord($ns){
+	Function AddNSRecord($ns,$ttl){
+		global $db;
 		$result = '';
 		// for each NS, add NS entry
 		while(list($key,$value) = each($ns)){
@@ -695,16 +882,21 @@ $result .= '
 					$query = "SELECT count(*) FROM dns_record WHERE 
 					zoneid='" . $this->zoneid . 
 					"' AND type='NS' AND val1='" . $value . "'";
-					$res = $this->db->query($query);
-					$line = $this->db->fetch_row($res);
+					$res = $db->query($query);
+					$line = $db->fetch_row($res);
 					if($line[0] == 0){
 						$result .= "Adding NS record " .
 						stripslashes($value) . "...";
-						$query = "INSERT INTO dns_record (zoneid, type, val1) 
+						if(!notnull($ttl[$key])){
+							$ttlval = "default";
+						}else{
+							$ttlval = $ttl[$key];
+						}
+						$query = "INSERT INTO dns_record (zoneid, type, val1,ttl) 
 							VALUES ('" . $this->zoneid . "', 'NS', '" 
-							. $value . "')";
-						$this->db->query($query);
-						if($this->db->error()){
+							. $value . "','" . $ttlval . "')";
+						$db->query($query);
+						if($db->error()){
 							$result .= ' <font color="red">Trouble with
 							 DB</font><br />';
 							$this->error = "Trouble with DB";
@@ -725,22 +917,24 @@ $result .= '
 
 // *******************************************************
 
-//	Function AddARecord($a,$aname)
+//	Function AddARecord($a,$aname,$ttl)
 	/**
 	 * Add an A record to the current zone
 	 *
 	 *@access private
 	 *@param string $a ip of A record
 	 *@param string $aname name of A record
+	 *@param int $ttl ttl value for this record
 	 *@return string text of result (Adding A Record... Ok)
 	 */
-	Function AddARecord($a,$aname){
+	Function AddARecord($a,$aname,$ttl){
+		global $db;
 		$result = '';
 		// for each A, add A entry
 		$i = 0;
 		while(list($key,$value) = each($aname)){
 			if($value != ""){
-				if(!checkName($value)){
+				if(! (checkName($value) || ($value == $this->zonename.'.'))){
 					$result .= '<font color="red">Error: bad A record ' . 
 					stripslashes($value) . "</font><br />\n";
 					$this->error = "Data error";
@@ -761,24 +955,28 @@ $result .= '
 							$query = "SELECT count(*) FROM dns_record WHERE 
 							zoneid='" . $this->zoneid . "' AND type='A' 
 							AND val1='" . $value . "'";
-							$res = $this->db->query($query);
-							$line = $this->db->fetch_row($res);
+							$res = $db->query($query);
+							$line = $db->fetch_row($res);
 							if($line[0] == 0){
 								// check if CNAME record not already exists
 								$query = "SELECT count(*) FROM dns_record WHERE 
 								zoneid='" . $this->zoneid . "' AND type='CNAME' 
 								AND val1='" . $value . "'";
-								$res = $this->db->query($query);
-								$line = $this->db->fetch_row($res);
+								$res = $db->query($query);
+								$line = $db->fetch_row($res);
 								if($line[0] == 0){
 									$result .= "Adding A record " . 
 									stripslashes($value) . "...";
-									$query = "INSERT INTO dns_record (zoneid, type, val1, val2) 
+									if(!notnull($ttl[$i])){
+										$ttlval = "default";
+									}else{
+										$ttlval = $ttl[$i];
+									}
+									$query = "INSERT INTO dns_record (zoneid, type, val1, val2,ttl) 
 									VALUES ('" . $this->zoneid . "', 
-									'A', '" . $value . "', '" . $a[$i] . "')
-									";
-									$this->db->query($query);
-									if($this->db->error()){
+									'A', '" . $value . "', '" . $a[$i] . "','" . $ttlval . "')";
+									$db->query($query);
+									if($db->error()){
 										$result .= " <font color=red>Trouble with
 										DB</font><br />\n";
 										$this->error = "Trouble with DB";
@@ -799,20 +997,25 @@ $result .= '
 								// change anything 
 								// if no, warn & assume it is round robin.
 								$query .= " AND val2='" . $a[$i] . "'";
-								$res = $this->db->query($query);
-								$line = $this->db->fetch_row($res);
+								$res = $db->query($query);
+								$line = $db->fetch_row($res);
 								if($line[0] == 0){
 									$result .= ', but with a different value. Assuming you
 									wish to have multiple records for the same target (Round
 									Robin) ';
 									$result .= "Adding A record " . 
 									stripslashes($value) . "...";
-									$query = "INSERT INTO dns_record (zoneid, type, val1, val2) 
+									if(!notnull($ttl[$i])){
+										$ttlval = "default";
+									}else{
+										$ttlval = $ttl[$i];
+									}									
+									$query = "INSERT INTO dns_record (zoneid, type, val1, val2,ttl) 
 									VALUES ('" . $this->zoneid . "', 
-									'A', '" . $value . "', '" . $a[$i] . "')
+									'A', '" . $value . "', '" . $a[$i] . "','" . $ttlval . "')
 									";
-									$this->db->query($query);
-									if($this->db->error()){
+									$db->query($query);
+									if($db->error()){
 										$result .= " <font color=red>Trouble with
 										DB</font><br />\n";
 										$this->error = "Trouble with DB";
@@ -838,21 +1041,23 @@ $result .= '
 		
 // *******************************************************
 
-//	Function AddCNAMERecord($cname,$cnamea)
+//	Function AddCNAMERecord($cname,$cnamea,$ttl)
 	/**
 	 * Add an CNAME record to the current zone
 	 *
 	 *@access private
 	 *@param string $cname name of CNAME record
 	 *@param string $cnamea record pointed by this CNAME record
+	 *@param int $ttl ttl value for this record
 	 *@return string text of result (Adding CNAME Record... Ok)
 	 */
-	Function AddCNAMERecord($cname,$cnamea){
+	Function AddCNAMERecord($cname,$cnamea,$ttl){
+		global $db;
 		// for each CNAME, add CNAME entry
 		$i = 0;
 		while(list($key,$value) = each($cname)){
 			if($value != ""){	
-				if(!checkName($value)){
+				if(!checkName($value) || checkIP($cnamea[$i])){
 					$result .= '<font color="red">Error: Bad CNAME record ' .
 					stripslashes($value) . "</font><br />\n";
 					$this->error = "Data error";
@@ -864,26 +1069,31 @@ $result .= '
 					}else{
 						// Check if record already exists
 						$query = "SELECT count(*) FROM dns_record WHERE 
-						zone='" . $this->zonename. "' AND type='CNAME' 
+						zoneid='" . $this->zoneid . "' AND type='CNAME' 
 						AND val1='" . $value . "'";
-						$res = $this->db->query($query);
-						$line = $this->db->fetch_row($res);
+						$res = $db->query($query);
+						$line = $db->fetch_row($res);
 						if($line[0] == 0){
 							// check if A record don't already exist
 							$query = "SELECT count(*) FROM dns_record WHERE 
 							zoneid='" . $this->zoneid . "' AND type='A' 
 							AND val1='" . $value . "'";
-							$res = $this->db->query($query);
-							$line = $this->db->fetch_row($res);
+							$res = $db->query($query);
+							$line = $db->fetch_row($res);
 							if($line[0] == 0){
 								$result .= "Adding CNAME record " . 
 								stripslashes($value) . "...";
-								$query = "INSERT INTO dns_record (zoneid, type, val1, val2) 
+								if(!notnull($ttl[$i])){
+									$ttlval = "default";
+								}else{
+									$ttlval = $ttl[$i];
+								}								
+								$query = "INSERT INTO dns_record (zoneid, type, val1, val2,ttl) 
 								VALUES ('" . $this->zoneid . "', 'CNAME', '"
-								 . $value . "', '" . $cnamea[$i] . "')
+								 . $value . "', '" . $cnamea[$i] . "','" . $ttlval . "')
 								";
-								$this->db->query($query);
-								if($this->db->error()){
+								$db->query($query);
+								if($db->error()){
 									$result .= ' <font color="red">Trouble with
 									DB</font><br />';
 									$this->error = "Trouble with DB";
@@ -909,16 +1119,18 @@ $result .= '
 
 // *******************************************************
 
-//	Function AddSUBNSRecord($cname,$cnamea)
+//	Function AddSUBNSRecord($subns,$subnsa,$ttl)
 	/**
 	 * Add a zone delegation to the current zone
 	 *
 	 *@access private
 	 *@param string $subns name of subzone
 	 *@param string $subnsa name of NS server
+	 *@param int $ttl ttl value for this record
 	 *@return string text of result (Adding zone NS Record... Ok)
 	 */
-	Function AddSUBNSRecord($subns,$subnsa){
+	Function AddSUBNSRecord($subns,$subnsa,$ttl){
+		global $db;
 		// for each SUBNS, add NS entry
 		$i = 0;
 		while(list($key,$value) = each($subns)){
@@ -940,20 +1152,25 @@ $result .= '
 						$query = "SELECT count(*) FROM dns_record 
 						WHERE zoneid='" . $this->zoneid . "' AND type='SUBNS' 
 						AND val1='" . $value . "' AND val2='" . $subnsa[$i] . "'";
-						$res=$this->db->query($query);
-						$line = $this->db->fetch_row($res);
-						if($this->db->error()){
+						$res=$db->query($query);
+						$line = $db->fetch_row($res);
+						if($db->error()){
 							$result .= ' <font color="red">Trouble with
 							DB</font><br />';
 							$this->error = "Trouble with DB";
 						}else{
 							if($line[0]==0){
-								$query = "INSERT INTO dns_record (zoneid, type, val1, val2) 
+								if(!notnull($ttl[$i])){
+									$ttlval = "default";
+								}else{
+									$ttlval = $ttl[$i];
+								}							
+								$query = "INSERT INTO dns_record (zoneid, type, val1, val2,ttl) 
 								VALUES ('" . $this->zoneid . "', 'SUBNS', '"
-								 . $value . "', '" . $subnsa[$i] . "')
+								 . $value . "', '" . $subnsa[$i] . "','" . $ttlval . "')
 								";
-								$this->db->query($query);
-								if($this->db->error()){
+								$db->query($query);
+								if($db->error()){
 									$result .= ' <font color="red">Trouble with
 									DB</font><br />';
 									$this->error = "Trouble with DB";
@@ -975,73 +1192,39 @@ $result .= '
 
 
 // *******************************************************
-//	Function AddAZONERecord($azone)
-	/**
-	 * Add an A record to for the top of the current zone
-	 *
-	 *@access private
-	 *@param string $azone ip of the zone's A record
-	 *@return string text of result (Adding A zone Record... Ok)
-	 */
-	Function AddAZONERecord($azone){
-		$result ='';
-		// add A to Zone
-
-		if($azone != ""){
-			if(!checkIP($azone)){
-				$result .= '<font color="red">Error: ' . $azone  . 
-				'for A zone record has to be an IP address</font><br />';
-				$this->error = "Data error";
-			}else{
-				$result .= "Adding A zone record " . 
-								stripslashes($azone) . "...";
-				// delete previous record
-				$query = "DELETE FROM dns_record WHERE zoneid='" . $this->zoneid . "'
-					AND type='AZONE'";
-				$this->db->query($query);
-				if($this->db->error($query)){
-					$result .= '<font color="red">Trouble with DB</font><br />';
-					$this->error = "Trouble with DB";
-				}
-				
-
-				$query = "INSERT INTO dns_record (zoneid,type,val1) 
-						VALUES ('" . $this->zoneid . "','AZONE','" . $azone . "')";
-				$this->db->query($query);
-				if($this->db->error($query)){
-					$result .= ' <font color="red">Trouble with DB</font><br />';
-					$this->error = "Trouble with DB";
-				}else{
-					$result .= " Ok<br />\n";
-				}
-			}
-		}else{
-			// if Azone already exists, delete
-			$query = "DELETE FROM dns_record WHERE zoneid='" . $this->zoneid . "'
-					AND type='AZONE'";
-			$this->db->query($query);
-			if($this->db->error($query)){
-				$result .= '<font color="red">Trouble with DB</font><br />';
-				$this->error = "Trouble with DB";
-			}
-		}
-		return $result;
-	}
-
-
-// *******************************************************
-//	Function UpdateSOA($xferip)
+//	Function UpdateSOA($xferip,$defaultttl,$soarefresh,$soaretry,$soaexpire,$soaminimum)
 	/**
 	 * Update SOA of current zone
 	 *
 	 *@access private
 	 *@param string $xferip IP(s) allowed to do zone transfers
+	 *@param int $defaultttl default TTL to be used
+	 *@param int $soarefresh refresh interval
+	 *@param int $soaretry retry interval
+	 *@param int $soaexpire expire interval
+	 *@param int $soaminimum negative TTL
 	 *@return string 1 if success, 0 if DB error, string of error else
 	 */
-	Function UpdateSOA($xferip){
+	Function UpdateSOA($xferip,$defaultttl,
+						$soarefresh,$soaretry,$soaexpire,$soaminimum){
+		global $db;
 		$result ="";
 
-	
+		if(!notnull($defaultttl)){
+			$defaultttl = 86400;
+		}
+		if(!notnull($soarefresh)){
+			$soarefresh = 10800;
+		}
+		if(!notnull($soaretry)){
+			$soaretry = 3600;
+		}
+		if(!notnull($soaexpire)){
+			$soaexpire = 604800;
+		}
+		if(!notnull($soaminimum)){
+			$soaminimum = 10800;
+		}
 		if(notnull($xferip)){
 			if(!checkPrimary($xferip)){
 				$error = 1;
@@ -1061,14 +1244,19 @@ $result .= '
 			$this->serial = getSerial($this->serial);
 			if($this->creation==0){
 				$query = "UPDATE dns_confprimary SET serial='" . $this->serial . "',
-				xfer='" . $xferip . "' 
+				xfer='" . $xferip . "', refresh='" . $soarefresh . "',
+				retry='" . $soaretry . "', expiry='" . $soaexpire . "',
+				minimum='" . $soaminimum . "', defaultttl='" . $defaultttl . "'
 				WHERE zoneid='" . $this->zoneid . "'";
 			}else{
-				$query = "INSERT INTO dns_confprimary (zoneid,serial,xfer)
-				VALUES ('" . $this->zoneid . "','" . $this->serial . "','" . $xferip . "')";
+				$query = "INSERT INTO dns_confprimary (zoneid,serial,xfer,refresh,
+						retry,expiry,minimum,defaultttl)
+				VALUES ('" . $this->zoneid . "','" . $this->serial . "','" . $xferip . "'
+				,'" . $soarefresh . "','" . $soaretry . "','" . $soaexpire . "','" .
+				$soaminimum . "','" . $defaultttl . "')";
 			}
-			$res = $this->db->query($query);
-			if($this->db->error()){
+			$res = $db->query($query);
+			if($db->error()){
 				$this->error="Trouble with DB";
 				return 0;
 			}
@@ -1085,35 +1273,39 @@ $result .= '
 
 
 // *******************************************************	
-//	Function RetrieveRecords($type,&$arraytofill)
+//	Function RetrieveRecords($type,&$arraytofill,&$ttltofill)
 	/**
 	 * Fill in given array with all records of type $type for current zone
 	 *
 	 *@access private
 	 *@param string $type type of record to be retrieved
 	 *@param array &$arraytofill reference of array to be filled with records
+	 *@param array &$ttltofill reference of array to be filled with ttl
 	 *@return int 1 if success, 0 if error
 	 */
-	Function RetrieveRecords($type,&$arraytofill){
+	Function RetrieveRecords($type,&$arraytofill,&$ttltofill){
+		global $db;
 		$this->error='';
-		$query = "SELECT val1, val2 
+		$query = "SELECT val1, val2, ttl
 			FROM dns_record 
 			WHERE zoneid='" . $this->zoneid . "'
 			AND type='" . $type . "'";
-		$res =  $this->db->query($query);
+		$res =  $db->query($query);
 		$arraytofill = array();
-		while($line = $this->db->fetch_row($res)){
-			if($this->db->error()){
+		$ttltofill = array();
+		while($line = $db->fetch_row($res)){
+			if($db->error()){
 				$this->error="Trouble with DB";
 				return 0;
 			}
 			$arraytofill[$line[0]]=$line[1];
+			$ttltofill[$line[0]] = $line[2];
 		}
 		return 1;
 	}
 
 // *******************************************************	
-//	Function RetrieveMultiRecords($type,$array1,$array2)
+//	Function RetrieveMultiRecords($type,&$array1,&$array2,&$ttltofill)
 	/**
 	 * Same as RetrieveRecords, but used when a type of record might 
 	 * have multiple similar entries (A for round robin, NS, etc...)
@@ -1123,25 +1315,29 @@ $result .= '
 	 *@param string $type type of record to be retrieved
 	 *@param array &$array1tofill reference of array to be filled with first record element
 	 *@param array &$array2tofill reference of array to be filled with second record element
+	 *@param array &$ttltofill reference of array to be filled with ttl
 	 *@return int 1 if success, 0 if error
 	 */
-	Function RetrieveMultiRecords($type,&$array1tofill,&$array2tofill){
+	Function RetrieveMultiRecords($type,&$array1tofill,&$array2tofill,&$ttltofill){
+		global $db;
 		$this->error='';
-		$query = "SELECT val1, val2 
+		$query = "SELECT val1, val2, ttl
 			FROM dns_record 
 			WHERE zoneid='" . $this->zoneid . "'
 			AND type='" . $type . "'";
-		$res =  $this->db->query($query);
+		$res =  $db->query($query);
 		$array1tofill = array();
 		$array2tofill = array();
+		$ttltofill = array();
 		$i=0;
-		while($line = $this->db->fetch_row($res)){
-			if($this->db->error()){
+		while($line = $db->fetch_row($res)){
+			if($db->error()){
 				$this->error="Trouble with DB";
 				return 0;
 			}
 			$array1tofill[$i]=$line[0];
 			$array2tofill[$i]=$line[1];
+			$ttltofill[$i]=$line[2];
 			$i++;
 		}
 	}
@@ -1156,70 +1352,86 @@ $result .= '
 	 *@return int 1
 	 */
 	Function generateConfigFile(){
-	
+		global $config;
 		// reinitialize every records after add/delete/modify
-				// fill in with records
-		$this->RetrieveRecords('NS',$this->ns);
-		$this->RetrieveRecords('MX',$this->mx);
-		$this->RetrieveRecords('AZONE',$this->azone);
-		$this->RetrieveRecords('DNAME',$this->dname);
-		$this->RetrieveMultiRecords('A',$this->a,$this->aip);
-		$this->RetrieveRecords('CNAME',$this->cname);
-		$this->RetrieveRecords('A6',$this->a6);
-		$this->RetrieveRecords('AAAA',$this->aaaa);
-		$this->RetrieveMultiRecords('SUBNS',$this->subns,$this->subnsa);
+		// fill in with records
+		$this->RetrieveRecords('NS',$this->ns,$this->nsttl);
+		$this->RetrieveRecords('MX',$this->mx,$this->mxttl);
+		$this->RetrieveRecords('DNAME',$this->dname,$this->dnamettl);
+		$this->RetrieveMultiRecords('A',$this->a,$this->aip,$this->attl);
+		$this->RetrieveRecords('CNAME',$this->cname,$this->cnamettl);
+		$this->RetrieveRecords('A6',$this->a6,$this->a6ttl);
+		$this->RetrieveRecords('AAAA',$this->aaaa,$this->aaaattl);
+		$this->RetrieveMultiRecords('SUBNS',$this->subns,$this->subnsa,$this->subnsttl);
 
 
 		// select SOA items
 		$fd = fopen("/tmp/" . $this->zonename . "." . $this->zonetype,"w");
-		fputs($fd, "
-\$TTL 86400
-" . $this->zonename . ".\t\tIN\tSOA\t" . $this->config->nsname . ".\t");
+		fputs($fd, "\n\$TTL " . $this->defaultttl . " ; default TTL
+" . $this->zonename . ".\t\tIN\tSOA\t" . $config->nsname . ".\t");
 		$mail = ereg_replace("@",".",$this->user->Retrievemail());
 		fputs($fd, $mail . ". (");
 		fputs($fd,"\n\t\t\t\t" . $this->serial . "\t; serial");
 		fputs($fd,"\n\t\t\t\t" . $this->refresh . "\t; refresh period");
 		fputs($fd,"\n\t\t\t\t" . $this->retry . "\t; retry interval");
 		fputs($fd,"\n\t\t\t\t" . $this->expiry . "\t; expire time");
-		fputs($fd,"\n\t\t\t\t" . $this->minimum . "\t; default ttl");
+		fputs($fd,"\n\t\t\t\t" . $this->minimum . "\t; negative TTL");
 		fputs($fd,"\n\t\t\t)");
 	
 		// retrieve & print NS
 		$keys = array_keys($this->ns);
 		while($key = array_shift($keys)){
-			fputs($fd,"\n\t\t\tIN\t\tNS\t\t" . $key);
+			if($this->nsttl[$key] != "default"){
+				fputs($fd,"\n\t\t" . $this->nsttl[$key] . "\tIN\t\tNS\t\t" . $key);
+			}else{
+				fputs($fd,"\n\t\t\tIN\t\tNS\t\t" . $key);
+			}
 		}
 
 		// retrieve & print MX
 		$keys = array_keys($this->mx);
 		while($key = array_shift($keys)){
-			fputs($fd, "\n\t\t\tIN\t\tMX\t" . $this->mx[$key] . "\t" . $key);
+			if($this->mxttl[$key] != "default"){
+				fputs($fd, "\n\t\t" . $this->mxttl[$key] . "\tIN\t\tMX\t" . $this->mx[$key] . "\t" . $key);
+			}else{
+				fputs($fd, "\n\t\t\tIN\t\tMX\t" . $this->mx[$key] . "\t" . $key);
+			}
 		}
 		
-		// retrieve & print AZONE
-		$keys = array_keys($this->azone);
-		while($key = array_shift($keys)){
-			fputs($fd, "\n" . $this->zonename . ".\t\tIN\t\tA\t\t" . $key);
-		}
 		fputs($fd,"\n\n\$ORIGIN " . $this->zonename . ".");
 
 		// retrieve & print A
 		$counter = 0;
 		while($this->a[$counter]){
-			fputs($fd,"\n" . $this->a[$counter] . "\t\t\tIN\t\tA\t\t" . $this->aip[$counter]);
+			if($this->attl[$counter] != "default"){
+				fputs($fd,"\n" . $this->a[$counter] . "\t\t" . $this->attl[$counter] . 
+					"\tIN\t\tA\t\t" . $this->aip[$counter]);
+			}else{
+				fputs($fd,"\n" . $this->a[$counter] . "\t\t\tIN\t\tA\t\t" . $this->aip[$counter]);
+			}
 			$counter++;
 		}
 
 		// retrieve & print CNAME
 		$keys = array_keys($this->cname);
 		while($key = array_shift($keys)){
-			fputs($fd,"\n" . $key . "\t\t\tIN\t\tCNAME\t\t" . $this->cname[$key]);
+			if($this->cnamettl[$key] != "default"){
+				fputs($fd,"\n" . $key . "\t\t" . $this->cnamettl[$key] . 
+					"\tIN\t\tCNAME\t\t" . $this->cname[$key]);
+			}else{
+				fputs($fd,"\n" . $key . "\t\t\tIN\t\tCNAME\t\t" . $this->cname[$key]);
+			}
 		}
 		
 		// retrieve & print SUBNS
 		$counter = 0;
 		while($this->subns[$counter]){
-			fputs($fd,"\n" . $this->subns[$counter] . "\t\t\tIN\t\tNS\t\t" . $this->subnsa[$counter]);
+			if($this->subnsttl[$counter] != "default"){
+				fputs($fd,"\n" . $this->subns[$counter] . "\t\t" . 
+					$this->subnsttl[$counter] . "\tIN\t\tNS\t\t" . $this->subnsa[$counter]);
+			}else{
+				fputs($fd,"\n" . $this->subns[$counter] . "\t\t\tIN\t\tNS\t\t" . $this->subnsa[$counter]);
+			}
 			$counter++;
 		}
 		

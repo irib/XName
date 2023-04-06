@@ -21,8 +21,6 @@
  *@access public
  */
 class Zone { 
-	var $db;
-	var $config;
 	var $error;
 	var $zonename;
 	var $zonetype;
@@ -35,15 +33,11 @@ class Zone {
 	/**
 	 * Class constructor
 	 *
-	 *@param string $dbase database currently used
 	 *@param string $zonename name of zone, may be empty
 	 *@param string $zonetype type of zone ('M'aster or 'S'lave)
-	 *@param object Config $config Config object
 	 */
-	Function Zone($dbase,$zonename,$zonetype,$config){
-		$this->db = $dbase; 
+	Function Zone($zonename,$zonetype){
 		$this->error="";
-		$this->config = $config;
 		
 		if(notnull($zonename)){
 			if($this->Exists($zonename,$zonetype)){
@@ -78,6 +72,7 @@ class Zone {
 	 *@return int 1 if true, 0 if false or error 
 	 */
 	Function Exists($zonename,$zonetype){
+		global $db;
 		$this->error="";
 		
 		// because XName has only 1 DNS, only primary OR secondary
@@ -85,9 +80,9 @@ class Zone {
 //		WHERE zone='$zonename' AND zonetype='$zonetype'";
 		$query = "SELECT count(*) FROM dns_zone
 		WHERE zone='$zonename'";
-		$res = $this->db->query($query);
-		$line = $this->db->fetch_row($res);
-		if($this->db->error()){
+		$res = $db->query($query);
+		$line = $db->fetch_row($res);
+		if($db->error()){
 			$this->error="Trouble with DB";
 			return 0;
 		}
@@ -116,6 +111,7 @@ class Zone {
 	 *@return array list of zones having links with this one, or 0 if error
 	 */
 	Function subExists($zonename,$userid){
+		global $db;
 		$this->error="";
 		// sub zone of an existing one ?
 		$upper = split('\.',$zonename);
@@ -130,12 +126,12 @@ class Zone {
 			}
 			$query = "SELECT zone from dns_zone WHERE 
 			zone='" . $tocompare . "' AND userid!='" . $userid . "'";
-			$res = $this->db->query($query);
-			if($this->db->error()){
+			$res = $db->query($query);
+			if($db->error()){
 				$this->error="Trouble with DB";
 				return 0;
 			}
-			while($line = $this->db->fetch_row($res)){
+			while($line = $db->fetch_row($res)){
 				array_push($list,$line[0]);			
 			}
 		}
@@ -143,12 +139,12 @@ class Zone {
 		// already a sub zone of this one ?
 		$query = "SELECT zone FROM dns_zone WHERE
 		zone like '%." . $zonename . "' AND userid!='" . $userid . "'";
-		$res = $this->db->query($query);
-		if($this->db->error()){
+		$res = $db->query($query);
+		if($db->error()){
 			$this->error="Trouble with DB";
 			return 0;
 		}
-		while($line = $this->db->fetch_row($res)){
+		while($line = $db->fetch_row($res)){
 			array_push($list,$line[0]);			
 		}
 
@@ -165,12 +161,13 @@ class Zone {
 	 *@return int 0 if error or no such zone, 1 if ID found
 	 */
 	Function retrieveID($zonename,$zonetype){
+		global $db;
 		$this->error="";
 		$query = "SELECT id FROM dns_zone WHERE 
 		zone='" . $zonename . "' AND zonetype='" . $zonetype . "'";
-		$res = $this->db->query($query);
-		$line = $this->db->fetch_row($res);
-		if($this->db->error()){
+		$res = $db->query($query);
+		$line = $db->fetch_row($res);
+		if($db->error()){
 			$this->error="Trouble with DB";
 			return 0;
 		}
@@ -194,71 +191,115 @@ class Zone {
 	 *@return int 1 if success, 0 if trouble
 	 */
 	Function zoneCreate($zonename,$zonetype,$userid){
+		global $db;
+		global $config;
+		
 		$this->error="";
 		// check if already exists or not
 		if(!$this->Exists($zonename,$zonetype)){
 			// does not exist already ==> OK
 			$query = "INSERT INTO dns_zone (zone,zonetype,userid)
 			VALUES ('".$zonename."','".$zonetype."','".$userid."')";
-			$res = $this->db->query($query);
-			if($this->db->error()){
+			$res = $db->query($query);
+			if($db->error()){
 				$this->error = "Trouble with DB";
 				return 0;
 			}else{
-				return 1;
+				$this->retrieveID($zonename,$zonetype);
+				// insert creation log
+				$query = "INSERT INTO dns_log (zoneid,content,status,serverid)
+						VALUES ('" . $this->zoneid . "','Zone successfully
+						created','I','1')";
+				$res = $db->query($query);
+				
+				// insert in dns_zonetoserver
+				$query = "INSERT INTO dns_zonetoserver (zoneid,serverid)
+						VALUES ('" . $this->zoneid . "','1')";
+				$res = $db->query($query);
+				if($db->error()){
+					$this->error = "Trouble with DB";
+					return 0;
+				}else{
+					// if multiserver, insert for others
+					if($config->multiserver){
+						// restrictions on servers should be written here
+						
+						$query = "SELECT id FROM dns_server where id!='1'";
+						$res = $db->query($query);
+						$serveridlist=array();
+						while($line = $db->fetch_row($res)){
+							array_push($serveridlist,$line[0]);
+						}
+						while($serverid=array_pop($serveridlist)){
+							$query = "INSERT INTO dns_zonetoserver
+										(zoneid,serverid) 
+									 VALUES ('" . $this->zoneid . "','" . 
+									 	$serverid . "')";
+							$res2 = $db->query($query);
+						}
+					}
+					return 1;
+				}
 			}
-			
 		}else{
-			$this->error="Zone already exists";
+			// check if zone status is D or not
+			$query = "SELECT status FROM dns_zone WHERE zone='" . $zonename . "'
+			AND zonetype='" . $zonetype . "'";
+			$res = $db->query($query);
+			$line = $db->fetch_row($res);
+			if($line[0] == 'D'){
+				$this->error="Zone exists, in deletion status. Try creating it
+				later.";
+			}else{
+				$this->error="Zone already exists.";
+			}
 			return 0;
 		}	
 	}
 
 
 
-// Function zoneDelete($zonename, $zonetype)
+// Function zoneDelete()
 // 		delete primary or secondary
 // 		internal use only
-// TODO : use zoneid instead of zonename & zonetype
 	/**
-	 * Delete zone and records from all tables
+	 * Delete current zone and records from all tables
 	 *
 	 *@access public
-	 *@param string $zonename zone name
-	 *@param string $zonetype zone type ('M'aster or 'S'lave)
 	 *@return int 1 if success, 0 if trouble
 	 */
-	Function zoneDelete($zonename,$zonetype){
+	Function zoneDelete(){
+		global $db;
 		$this->error="";
-		if(!$this->Exists($zonename,$zonetype)){
-			$this->error="Bad login/pass/type";
-			return 0;
+		// Delete from :
+		// dns_zone, dns_conf*, dns_record,
+		// dns_recovery
+		$todelete = array('dns_record','dns_log');
+		if($this->zonetype == 'M'){
+			array_push($todelete, 'dns_confprimary');
 		}else{
-			// Delete from :
-			// dns_zone, dns_conf*, dns_modified, dns_record,
-			// dns_recovery, dns_waitingreply
-			// insert into dns_deleted
-			$todelete = array('dns_zone','dns_modified',
-			'dns_record','dns_recovery','dns_waitingreply');
-			if($zonetype == 'M'){
-				array_push($todelete, 'dns_confprimary');
-			}else{
-				array_push($todelete, 'dns_confsecondary');
-			}
-			reset($todelete);
-			
-			while($item = array_pop($todelete)){
-				$query = "DELETE FROM " . $item . " WHERE 
-				zone='" . $zonename . "'";
-				$this->db->query($query);
-				if($this->db->error()){
-					$this->error = "Trouble with DB";
-					return 0;
-				}else{
-					return 1;
-				}
+			array_push($todelete, 'dns_confsecondary');
+		}
+		reset($todelete);
+		
+		while($item = array_pop($todelete)){
+			$query = "DELETE FROM " . $item . " WHERE 
+			zoneid='" . $this->zoneid . "'";
+			$db->query($query);
+			if($db->error()){
+				$this->error = "Trouble with DB";
+				print $query;
+				return 0;
 			}
 		}
+		$query = "UPDATE dns_zone SET status='D' WHERE 
+			id='" . $this->zoneid . "'";
+		$res = $db->query($query);
+		if($db->error()){
+			$this->error = "Trouble with DB";
+			return 0;
+		}
+		return 1;
 	}
 
 
@@ -279,21 +320,22 @@ class Zone {
 	 *@return string html code of rows
 	 */
 	Function zoneLogs($class1,$class2){
+		global $db;
 		$this->error="";
 		$result = "";
 		$query = "SELECT count(*) FROM dns_log WHERE zoneid='" .
 		$this->zoneid . "'";
-		$res=$this->db->query($query);
-		$line=$this->db->fetch_row($res);
+		$res=$db->query($query);
+		$line=$db->fetch_row($res);
 		if($line[0] == 0){
 			return "No logs available for this zone.";		
 		}
-		$query = "SELECT date,content,status 
-		FROM dns_log WHERE zoneid='" . $this->zoneid . "' ORDER BY date DESC";
-		$res=$this->db->query($query);
+		$query = "SELECT date,content,status,s.servername 
+		FROM dns_log l, dns_server s WHERE s.id=l.serverid AND zoneid='" . $this->zoneid . "' ORDER BY date DESC";
+		$res=$db->query($query);
 		$class=$class2;
-		while($line=$this->db->fetch_row($res)){
-			if($this->db->error()){
+		while($line=$db->fetch_row($res)){
+			if($db->error()){
 				$this->error = "Trouble with DB";
 				return 0;
 			}else{
@@ -310,19 +352,47 @@ class Zone {
 						$classadd="WARNING";
 					}
 				}
-				// out only hour:min
+				// out only year - month - day hour:min
 				$timestamp = $line[0];
 				$hour = substr($timestamp,-6,2);
 				$min = substr($timestamp,-4,2);
-				$result .= '<tr class="' . $class . '"><td class="' . $class . '">' . $hour . ":" .
-				$min .
+				$year = substr($timestamp,0,4);
+				$month = substr($timestamp,4,2);			
+				$day = substr($timestamp,6,2);
+				
+				$result .= '<tr class="' . $class . '"><td class="' . $class . '">' . 
+				$year . "-" . $month . "-" . $day . " " . $hour . ":" .	$min .
 				'</td><td class="' . $class . '">' .
-				$line[1] . '</td><td class="' . $class . $classadd . 
-				'">' . $line[2] . "</td></tr>\n";
+				$line[3] . '</td><td class="' . $class . '">' . $line[1] . '</td><td class="' . $class . $classadd . 
+				'" align="center">&nbsp;' . $line[2] . "&nbsp;</td></tr>\n";
 			}
 		}
 		return $result;
 	}
+
+// Function zoneLogsDelete()
+	/**
+	 * Delete all logs for current zone, and insert a "deleted" line in logs
+	 * to avoid empty logs
+	 *
+	 *@access public
+	 *@return int 1 if success, 0 on error
+	 */
+	 Function zoneLogDelete(){
+	 	global $db;
+		$this->error="";
+		$query = "DELETE from dns_log WHERE zoneid='" . $this->zoneid . "'";
+		$res=$db->query($query);
+		if($db->error()){
+			$this->error = "Trouble with DB";
+			return 0;
+		}else{
+			$query = "INSERT INTO dns_log (zoneid,content,status,serverid)
+					VALUES ('" . $this->zoneid . "','Zone logs purged','I','1')";
+			$res = $db->query($query);
+			return 1;
+		}
+	}	
 
 //	Function zoneStatus()
 // 		Returns global status of zone : I,W,E or U(nknown)
@@ -333,14 +403,15 @@ class Zone {
 	 *@return string I W E or U or 0 if trouble
 	 */
 	Function zoneStatus(){
+		global $db;
 		$this->error="";
 		$i=0;
 		$query = "SELECT status FROM 
 		dns_log WHERE zoneid='" . $this->zoneid . "' 
 		GROUP BY status";
-		$res=$this->db->query($query);
-		while($line=$this->db->fetch_row($res)){
-			if($this->db->error()){
+		$res=$db->query($query);
+		while($line=$db->fetch_row($res)){
+			if($db->error()){
 				$this->error = "Trouble with DB";
 				return 0;
 			}else{
@@ -373,15 +444,16 @@ class Zone {
 	 *@return int user ID or 0 if trouble
 	 */
 	Function RetrieveUser(){
+		global $db;
 		$this->error="";
 		if($this->userid != 0){
 			return $this->userid;
 		}
 		$query = "SELECT userid FROM dns_zone 
 		WHERE id='" . $this->zoneid . "'";
-		$res=$this->db->query($query);
-		$line=$this->db->fetch_row($res);
-		if($this->db->error()){
+		$res=$db->query($query);
+		$line=$db->fetch_row($res);
+		if($db->error()){
 			$this->error="Trouble with DB";
 			return 0;
 		}else{

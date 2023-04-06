@@ -1,6 +1,6 @@
 <?
 $title = "Currently hosted";
-$content = "Primary : " . countPrimary($db) . "<br />
-Secondary : " . countSecondary($db);
+$content = "Primary : " . countPrimary() . "<br />
+Secondary : " . countSecondary();
 print $html->box($title,$content);
 ?>
