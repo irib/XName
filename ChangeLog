@@ -1,0 +1,77 @@
+Version 2.0.1
+-------------
+
+Thu Jun 06 2002 Yann Hirou (hirou@xname.org)
+
+	* initial public release
+
+
+Version 2.0.2
+-------------
+
+Wed Jun 12 2002 Yann Hirou (hirou@xname.org)
+
+	* html/includes/login.php: correct "argument missing"
+		in "new Zone" line 43.
+		bug reported by EspReSso (espresso@magnum.espresso.org)
+
+
+Version 2.0.3
+-------------
+
+Wed Jun 12 2002 Yann Hirou (hirou@xname.org)
+	
+	* delete zone files when deleting zone
+		(modified in html/deletezone.php and bin/delete.pl)
+
+
+Version 2.0.4
+-------------
+
+Wed Jun 12 2002 Yann Hirou (hirou@xname.org)
+
+	* database modification - dns_deleted (zonename,zonetype,userid)
+		to correct bug of persistent zones even if deleted
+
+	* correction of delete.pl to delete slaves files properly
+		bugs reported by EspReSso  (espresso@magnum.espresso.org)
+
+
+Version 2.0.5
+-------------
+
+Tue Jul 16 2002 Yann Hirou (hirou@xname.org)
+
+	* logout bug corrected - idsession was not deleted from dns_session
+		and use of "back" button worked.
+		
+	* integration of patch for register_globals=Off, for php 4.1.0 and upper.
+	  modified to permit register_globals on or off.
+	  
+	* $config->tousersource - email address used as From: in all
+		to-user emails, instead of $config->emailfrom and $config->contactemail
+		bug reported by Simon Kramer (simon@krameronline.ch)
+		
+	* perl script config variables regrouped in one config file
+		config.pl. All binaries paths are configurable
+		
+	* binaries in PHP scripts are all configurable through libs/config.php
+		config->bindig $config->binhost and $config->binnamedcheckzone
+		
+	* backend added - html/backend.php provides basic info for wmXName
+		or other desktop tools: nbZones, nbInfo, nbWarning, nbError for
+		given user.
+
+
+Version 2.0.6
+-------------
+
+Fri Jul 19 2002 Yann Hirou (hirou@xname.org)
+
+	* logwindow.php and digwindow.php bug corrected, preventing correct
+		working with register_globals=on
+		bug reported by Georges Toth (g.toth@e-biz.lu)
+	
+	* createuser.php bug corrected (syntax error)
+		bug reported by Georges Toth (g.toth@e-biz.lu)
+
