@@ -182,8 +182,8 @@ if($user->authenticated == 0){
 		
 					if(!$error){
 					// insert into dns_deleted (to delete file....)
-						$query = "INSERT INTO dns_deleted (zoneid) values ('" .
-						$zone->zoneid . "')";			
+						$query = "INSERT INTO dns_deleted (zonename,zonetype,userid) values ('" .
+						$zone->zonename . "','" . $zone->zonetype . "','" . $user->userid . "')";			
 						$res = $db->query($query);
 						if($db->error()){
 							$error = 1;

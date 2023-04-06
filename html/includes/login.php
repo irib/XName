@@ -52,7 +52,7 @@ if($user->authenticated != 1){
 		$content ='<table border="0" width="100%">';
 		while($otherzone= array_pop($allzones)){
 			// TODO : NEW ZONE
-			$newzone = new Zone($db,$otherzone[0],$otherzone[1]);
+			$newzone = new Zone($db,$otherzone[0],$otherzone[1],$config);
 			$status = $newzone->zonestatus();
 			switch($status) {
 				case 'I':

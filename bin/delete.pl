@@ -17,10 +17,14 @@ use DBI;
 ####################################
 $DB_HOST='127.0.0.1';
 $DB_PORT='3306';
-$DB_USER='root';
-$DB_PASSWORD='pqwun,o';
-$DB_NAME='xnamenew';
+$DB_USER='xnameuser';
+$DB_PASSWORD='password';
+$DB_NAME='xnamedev';
 
+####################################
+#          NAMED variables         #
+####################################
+$NAMED_DATA_DIR = "/var/chroot/named/var/named/";
 
 ####################################
 #           LOG variables          #
@@ -89,7 +93,7 @@ if (!$sth->execute) {
 }
 
 while (my $ref = $sth->fetchrow_hashref()) {
-# for each zone, 
+# for each user, 
 	$userid = $ref->{'userid'};
 	print LOG $LOG_PREFIX . "$timetouse Deleting user $userid\n";	
 
@@ -113,6 +117,47 @@ while (my $ref = $sth->fetchrow_hashref()) {
 		print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
 	}
 
+}
+
+$query = "SELECT zonename,zonetype
+		FROM dns_deleted";
+
+my $sth = $dbh->prepare($query);
+if(!$sth){
+	print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+}
+if (!$sth->execute) {
+	print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+}
+
+@todelete=();
+while (my $ref = $sth->fetchrow_hashref()) {
+# for each zone, 
+	$zonename = $ref->{'zonename'};
+	$zonetype = $ref->{'zonetype'};
+	print LOG $LOG_PREFIX . "$timetouse Deleting zone $zonename\n";	
+
+	# Delete $NAMED_DATA_DIR/masters|slaves
+	if($zonetype eq "P"){
+		$command= "rm $NAMED_DATA_DIR" . "masters/" . $zonename;
+	}else{
+		$command= "rm $NAMED_DATA_DIR" . "slaves/" . $zonename;
+	}
+	`$command`;
+	push(@todelete,$zonename);
+}
+
+
+# delete from DB
+while(<@todelete>){
+	$query = "DELETE from dns_deleted WHERE zonename='" . $_ . "'";
+	my $sth = $dbh->prepare($query);
+	if(!$sth){
+		print LOG $LOG_PREFIX . " : Error:" . $dbh->errstr . "\n";
+	}
+	if (!$sth->execute) {
+		print LOG $LOG_PREFIX . " : Error:" . $sth->errstr . "\n";
+	}
 }
 
 close LOG;

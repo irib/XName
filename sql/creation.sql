@@ -72,8 +72,9 @@ CREATE TABLE dns_modified (
 );
 
 CREATE TABLE dns_deleted (
-	zoneid int NOT NULL,
-	KEY zone_id(zoneid)
+	zonename varchar(255) NOT NULL,
+	zonetype enum('P','S','B') NOT NULL,
+	userid int NOT NULL
 );
 
 CREATE TABLE dns_generate (
