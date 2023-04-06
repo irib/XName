@@ -15,52 +15,14 @@ use IO::Handle;
 use GnuPG::Interface;
 use Mail::Sendmail;
 
+require "config.pl";
 
-####################################
-#          SITE variables          #
-####################################
-$SITE_NAME="XName DEMO";
-$SITE_NS="ns0.xname.org";
+$LOG_PREFIX .='generate';
 
 
-####################################
-#        DATABASE variables        #
-####################################
-$DB_HOST='127.0.0.1';
-$DB_PORT='3306';
-$DB_USER='xnameuser';
-$DB_PASSWORD='password';
-$DB_NAME='xnamedev';
-
-
-####################################
-#          NAMED variables         #
-####################################
-$NAMED_CONF = "/var/chroot/named/etc/named.conf";
-$NAMED_CONF_HEADERS = "/var/chroot/named/etc/named_headers";
-$NAMED_DATA_DIR = "/var/chroot/named/var/named/";
-$NAMED_DATA_CHROOTED_DIR = "/var/named/";
-
-
-####################################
-#          EMAIL variables         #
-####################################
-$EMAIL_ADMIN = "demo\@xname.org";
-$EMAIL_FROM = "XName DEMO <demo\@xname.org>";
-$EMAIL_SUBJECT_PREFIX = "[XName.org]";
-$EMAIL_SIGNATURE = "
--- 
-Xname.org Team
-xname\@xname.org
-";
-
-
-####################################
-#           LOG variables          #
-####################################
-$LOG_FILE='/tmp/xname.log';
-$LOG_PREFIX='XName-generate';
-
+########################################################################
+#         To modify configuration parameters, edit config.pl
+########################################################################
 
 
 ########################################################################
@@ -279,8 +241,8 @@ $prefix		IN	SOA		" . $SITE_NS . ". $email. (
 
 
 	# open file 
-	open(DATA_FILE, ">" . $NAMED_DATA_DIR . "masters/" . $zone ) || 	print LOG $LOG_PREFIX . " : Error
-	opening $NAMED_DATA_DIR masters/ $zone";
+	open(DATA_FILE, ">" . $NAMED_DATA_DIR . $NAMED_MASTERS_DIR . $zone ) || 	print LOG $LOG_PREFIX . " : Error
+	opening $NAMED_DATA_DIR $NAMED_MASTERS_DIR $zone";
 	print DATA_FILE $toprint;
 	close(DATA_FILE);
 }
@@ -339,7 +301,7 @@ zone "' . $ref->{'zone'} . '" {
 $zone = $ref->{'zone'};
 # reload named for each concerned zone ONLY
 
-`/usr/local/bin/rndc reload $zone`
+`$RNDC_COMMAND reload $zone`
 
 }		
 
@@ -382,7 +344,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
 		
 zone "' . $ref->{'zone'} . '" {
 	type slave;
-	file "' . $NAMED_DATA_CHROOTED_DIR . 'slaves/' . $ref->{'zone'} . '";
+	file "' . $NAMED_DATA_CHROOTED_DIR . $NAMED_MASTERS_DIR . $ref->{'zone'} . '";
 	masters {' . $masters . '; };
 	allow-transfer {' . $xfer. '; };
 };';
@@ -395,7 +357,7 @@ $zone = $ref->{'zone'};
 # reload named for each concerned zone ONLY
 
 
- `/usr/local/bin/rndc reload $zone`
+ `$RNDC_COMMAND reload $zone`
 
 	
 }
@@ -415,7 +377,7 @@ $sth->finish();
 
 #  check if error. If error, DO NOT RELOAD
 
-@result = `/usr/local/sbin/named-checkconf $NAMED_CONF`;
+@result = `$CHECKCONF_COMMAND $NAMED_CONF`;
 $error = 0;
 foreach(@result){
 	if(/error/){
@@ -440,9 +402,7 @@ if($error == 1){
 
 }else{
 	# reload
-	`/etc/init.d/named stop`;
-	`/usr/bin/killall named`;
-	`/etc/init.d/named start`;
+	`$RELOADALL_COMMAND`;
 }
 
 # *********************************************************

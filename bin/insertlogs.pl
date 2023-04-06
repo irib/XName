@@ -14,28 +14,14 @@ use DBI;
 use Time::localtime;
 use Date::Parse;
 
+require "config.pl";
 
-####################################
-#        DATABASE variables        #
-####################################
-$DB_HOST='127.0.0.1';
-$DB_PORT='3306';
-$DB_USER='xnameuser';
-$DB_PASSWORD='password';
-$DB_NAME='xnamedev';
-
-####################################
-#           LOG variables          #
-####################################
-$LOG_FILE='/tmp/xname.log';
-$LOG_PREFIX='XName-insertlogs';
+$LOG_PREFIX .= "insertlogs";
 
 
-####################################
-#         SYSTEM variables         #
-####################################
-$SYSLOG_FILE = "/var/log/daemon.log";
-
+########################################################################
+#         To modify configuration parameters, edit config.pl
+########################################################################
 
 ########################################################################
 # STOP STOP STOP STOP STOP STOP STOP STOP STOP STOP STOP STOPS STOP STOP
@@ -121,6 +107,13 @@ if($lastline ne ""){
 # if no line is read, don't save last read line !
 $readline = 0;
 
+$protectednameddir= $NAMED_DATA_CHROOTED_DIR;
+$protectednameddir =~ s/\//\\\//g;
+$protectedmastersdir = $NAMED_MASTERS_DIR;
+$protectedmastersdir =~ s/\//\\\//g;
+$protectedmastersdir = $NAMED_SLAVES_DIR;
+$protectedslavesdir =~ s/\//\\\//g;
+
 while(<FILE>){
 	$readline++;
 	$line = $_;
@@ -142,8 +135,9 @@ while(<FILE>){
 		if($content =~ /\s('|)([^\/\s]+)\/IN/){
 			$zonename = $2;
 		}else{
-		
-			if($content =~ /\/var\/named\/(masters|slaves)\/([^:]+):/){
+			
+			if($content =~
+			/$protectednameddir($protectedmastersdir|$protectedslavesdir)([^:]+):/){
 				$zonename = $2;
 			}else{	
 				print LOG $LOG_PREFIX . " : Not matching : $content\n";
@@ -253,7 +247,7 @@ if($readline){
 }
 
 
-deleteOldLogs(60*6);
+deleteOldLogs(60*$LOG_HOURS_TO_KEEP);
 
 
 

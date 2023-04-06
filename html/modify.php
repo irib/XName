@@ -37,9 +37,13 @@ print $html->globaltablemiddle();
 
 if($user->authenticated==1){
 
+	if(isset($_REQUEST) && isset($_REQUEST['zonename'])){
+		$zonename=$_REQUEST['zonename'];
+		$zonetype=$_REQUEST['zonetype'];
+	}
 	if(notnull($zonename)){
-		$zonename=addslashes($zonename);
-		$zonetype=addslashes($zonetype);
+		$zonename = addslashes($zonename);
+		$zonetype = addslashes($zonetype);
 		$zone = new Zone($db,$zonename,$zonetype,$config);
 		if($zone->error){
 			print "Error: " . $zone->error;
@@ -61,16 +65,28 @@ if($user->authenticated==1){
 
 				if($zone->zonetype=='P'){
 					$title .= ' Primary';
+					if(isset($_REQUEST)){
+						$azone = $_REQUEST['azone'];
+						$xferip = $_REQUEST['xferip'];
+					}
 					$azone=addslashes($azone);
 					$xferip=addslashes($xferip);
-
-					$params=array($HTTP_POST_VARS,$azone,$xferip);
+					if(isset($_REQUEST)){
+						$params=array($_REQUEST,$azone,$xferip);
+					}else{
+						$params=array($HTTP_POST_VARS,$azone,$xferip);
+					}
 					$currentzone = new
 				
 Primary($db,$zone->zonename,$zone->zonetype,$user,$config);
 				}else{
 					if($zone->zonetype=='S'){
 						$title .= ' Secondary';
+						if(isset($_REQUEST)){
+							$primary = $_REQUEST['primary'];
+							$xfer = $_REQUEST['xfer'];
+							$xferip = $_REQUEST['xferip'];
+						}
 						$primary=addslashes($primary);
 						$xfer=addslashes($xfer);
 						$xferip=addslashes($xferip);
@@ -79,7 +95,9 @@ Primary($db,$zone->zonename,$zone->zonetype,$user,$config);
 Secondary($db,$zone->zonename,$zone->zonetype,$user,$config);
 					}
 				}
-	
+				if(isset($_REQUEST)){
+					$modified = $_REQUEST['modified'];
+				}
 				if($modified == 1){
 					$content = $currentzone->printModified($params);
 				}else{

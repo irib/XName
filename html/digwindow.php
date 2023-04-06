@@ -24,14 +24,25 @@ print $html->header('Dig zone');
 
 
 // protect variables for db usage
+if(isset($_REQUEST) && isset($_REQUEST['idsession'])){
+	$idsession=$_REQUEST['idsession'];
+}
 if(isset($idsession)){
 	$idsession=addslashes($idsession);
 }
+
+if(isset($_REQUEST) && isset($_REQUEST['login'])){
+	$login=$_REQUEST['login'];
+}
 if(isset($login)){
-	$login=addslashes($login);
+	$login = addslashes($login);
+}
+
+if(isset($_REQUEST) && isset($_REQUEST['password'])){
+	$password=$_REQUEST['password'];
 }
 if(isset($password)){
-	$password=addslashes($password);
+	$password = addslashes($password);
 }
 
 $db = new Db($config);
@@ -42,7 +53,8 @@ if(!notnull($idsession)){
 	$idsession=$user->idsession;
 }
 
-if($logout){
+if((isset($_REQUEST) && $_REQUEST['logout']) ||
+	(!isset($_REQUEST) && $logout == 1)){
 	$user->logout($idsession);
 }
 
@@ -57,9 +69,11 @@ if($user->error){
 }
 
 if($user->authenticated==1){
-	$zonename = addslashes($zonename);
-	$zonetype = addslashes($zonetype);
-	$server = addslashes($server);
+	if(isset($_REQUEST)){
+		$zonename = $_REQUEST['zonename'];
+		$zonetype = $_REQUEST['zonetype'];
+		$server = $_REQUEST['server'];		
+	}
 	$zone = new Zone($db,$zonename,$zonetype,$config);
 	if($zone->error){
 	print "<font color=\"red\">" . $user->error . "</font>\n";

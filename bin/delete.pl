@@ -12,26 +12,13 @@
 
 use DBI;
 
-####################################
-#        DATABASE variables        #
-####################################
-$DB_HOST='127.0.0.1';
-$DB_PORT='3306';
-$DB_USER='xnameuser';
-$DB_PASSWORD='password';
-$DB_NAME='xnamedev';
+require "config.pl";
 
-####################################
-#          NAMED variables         #
-####################################
-$NAMED_DATA_DIR = "/var/chroot/named/var/named/";
+$LOG_PREFIX .='delete';
 
-####################################
-#           LOG variables          #
-####################################
-$LOG_FILE='/tmp/xname.log';
-$LOG_PREFIX='XName-delete';
-
+########################################################################
+#         To modify configuration parameters, edit config.pl
+########################################################################
 
 
 ########################################################################
@@ -139,9 +126,9 @@ while (my $ref = $sth->fetchrow_hashref()) {
 
 	# Delete $NAMED_DATA_DIR/masters|slaves
 	if($zonetype eq "P"){
-		$command= "rm $NAMED_DATA_DIR" . "masters/" . $zonename;
+		$command= "$RM_COMMAND $NAMED_DATA_DIR" . $NAMED_MASTERS_DIR . $zonename;
 	}else{
-		$command= "rm $NAMED_DATA_DIR" . "slaves/" . $zonename;
+		$command= "$RM_COMMAND $NAMED_DATA_DIR" . $NAMED_SLAVES_DIR . $zonename;
 	}
 	`$command`;
 	push(@todelete,$zonename);

@@ -24,7 +24,11 @@ include 'includes/currentzones.php';
 
 $title = 'Email validation';
 
-if(notnull($id)){
+if((isset($_REQUEST) && notnull($_REQUEST['id'])) || 
+	(!isset($_REQUEST) && notnull($id))){
+	if(isset($_REQUEST)){
+		$id = $_REQUEST['id'];
+	}
 	if($user->validateIDEmail($id)){
 	
 		$content = 'Your email is now flagged as valid.<br />

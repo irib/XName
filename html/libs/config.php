@@ -29,7 +29,8 @@ Class Config {
 		$this->sitename = 'XName Demo site';
 		$this->domainname = 'dev.xname.org';
 		$this->mainurl = 'http://dev.xname.org/';
-		$this->contactemail = 'demo@xname.org';
+		$this->contactemail = 'demo@xname.org'; // used on web pages
+		$this->tousersource = 'webserver@xname.org'; // used in to-user emails
 		$this->emailsignature = 'XName DEMO team';
 		$this->cssurl = "style/xname.css";
 		// emailfrom & emailto are used when an error
@@ -47,6 +48,10 @@ Class Config {
 		// your NS parameters
 		$this->nsname = 'ns0.xname.org';
 		$this->nsaddress = '213.11.111.252';
+		// bin paths
+		$this->bindig = '/bin/dig';
+		$this->binhost = '/bin/host';
+		$this->binnamedcheckzone = '/bin/named-checkzone';
 		return $this;
 	}
 }

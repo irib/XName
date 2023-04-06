@@ -19,8 +19,15 @@
 include 'includes/header.php';
 
 
+if(isset($_REQUEST) && isset($_REQUEST['zonename'])){
+	$zonename=$_REQUEST['zonename'];
+}
 if(isset($zonename)){
-	$zonename=addslashes($zonename);
+	$zonename = addslashes($zonename);
+}
+
+if(isset($_REQUEST) && isset($_REQUEST['zonetype'])){
+	$zonetype=$_REQUEST['zonetype'];
 }
 if(isset($zonetype)){
 	$zonetype=addslashes($zonetype);
@@ -85,7 +92,8 @@ if($user->authenticated == 0){
 				$content .= ') is not owned by you.</font>';
 			}else{
 
-				if(!isset($confirm)){
+				if((isset($_REQUEST) && !isset($_REQUEST['confirm'])) ||
+					(!isset($_REQUEST) && !isset($confirm))){
 				// ==> print confirm screen
 					$content = '
 					<div class="boxheader">Confirmation</div>

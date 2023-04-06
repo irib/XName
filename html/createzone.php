@@ -40,7 +40,8 @@ if($user->authenticated == 0){
 	$content = 'you must log in before creating new zone.
 	';
 }else{
-	if(!isset($zonenamenew)){
+	if((isset($_REQUEST) && !isset($_REQUEST['zonenamenew'])) ||
+		(!isset($_REQUEST) && !isset($zonenamenew))){
 	$content ='
 <form action="' . $PHP_SELF . '" method="post">
 			<input type="hidden" name="idsession" value="' . $user->idsession .
@@ -59,6 +60,10 @@ if($user->authenticated == 0){
 ';
 	}else{
 	// $zonenamenew is set
+		if(isset($_REQUEST)){
+			$zonenamenew = $_REQUEST['zonenamenew'];
+			$zonetypenew = $_REQUEST['zonetypenew'];
+		}
 		$content = "";
 		$error = 0;
 		$missing = "";

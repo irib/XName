@@ -37,7 +37,8 @@ if($user->authenticated != 1){
 }else{
 	// print login, email, change password
 	// valid or not
-	if(!$modify){
+	if((isset($_REQUEST) && !$_REQUEST['modify']) ||
+		(!isset($_REQUEST) && !$modify)){
 		$content = '
 		<form action="' . $PHP_SELF . '" method="post">
 		<input type="hidden" name="modify" value="1">
@@ -68,7 +69,11 @@ if($user->authenticated != 1){
 	}else{
 		$content = "";
 		// check if newlogin already exists or not
-		if(notnull($newlogin)){
+		if((isset($_REQUEST) && notnull($_REQUEST['newlogin'])) ||
+			(!isset($_REQUEST) && notnull($newlogin))){
+			if(isset($_REQUEST)){
+				$newlogin = $_REQUEST['newlogin'];
+			}
 			$newlogin=addslashes($newlogin);
 			$content .= 'Changing your login name... ';
 			if(!checkName($newlogin)){
@@ -93,6 +98,9 @@ if($user->authenticated != 1){
 		// check if mail modified or not
 		// if modified ==> valid=0
 		// password
+		if(isset($_REQUEST)){
+			$email = $_REQUEST['email'];
+		}
 		if($email != $user->Retrievemail()){
 			// mail modified
 			// check & warn if bad
@@ -149,7 +157,7 @@ Regards,
 						$content .= $user->error;
 					}else{
 				
-						if(mailer($config->emailfrom,$email, $config->sitename .
+						if(mailer($config->tousersource,$email, $config->sitename .
 						" email validation","",$mailbody)){
 
 							$content .= 'OK. <p />A mail was succesfully sent to you, to validate your
@@ -171,12 +179,20 @@ Regards,
 		}
 		
 		if(!$error){
-			if($oldpass){
+			if((isset($_REQUEST) && $_REQUEST['oldpass']) ||
+				(!isset($_REQUEST) && $oldpass)){
 				$content .= 'Modifying password... ';
 				// check if old = current
+				if(isset($_REQUEST)){
+					$oldpass = $_REQUEST['oldpass'];
+				}
 				$oldpass = addslashes($oldpass);
 				if($oldpass == $user->Retrievepassword()){
 					// check if new = confirmnew
+					if(isset($_REQUEST)){
+						$passnew = $_REQUEST['passnew'];
+						$confirmpassnew = $_REQUEST['confirmpassnew'];
+					}
 					if($passnew != $confirmpassnew){
 						$error = 1;
 						$content .= '<font color="red">Error: new passwords do not

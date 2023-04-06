@@ -31,7 +31,8 @@ print $html->globaltablemiddle();
 // main content
 
 $title = "Password recovery";
-if(!isset($id) && !isset($account)){
+if((isset($_REQUEST) && !isset($_REQUEST['id']) && !isset($_REQUEST['account']))
+	|| (!isset($_REQUEST) && !isset($id) && !isset($account))){
 	$content = '
 	You have lost your password ? <br />
 	Fill in the following field, and an email will be sent to you,
@@ -49,18 +50,29 @@ if(!isset($id) && !isset($account)){
 	</table>
 	</form>';
 }else{
-	if(notnull($account) || notnull($zonename)){
+	if((isset($_REQUEST) && (notnull($_REQUEST['account']) || 
+		notnull($_REQUEST['zonename']))) || 
+		(!isset($_REQUEST) && (notnull($account) || notnull($zonename)))){
 		$error = 0;
-		$content = '';		
-		if(notnull($zonename)){
+		$content = '';
+		if((isset($_REQUEST) && notnull($_REQUEST['zonename'])) ||
+			(!isset($_REQUEST) && notnull($zonename))){
+			if(isset($_REQUEST)){
+				$zonename = $_REQUEST['zonename'];
+			}
 			$zonename = addslashes($zonename);
-			if(!notnull($zonetype)){
+			
+			if((isset($_REQUEST) && !notnull($_REQUEST['zonetype'])) ||
+				(!isset($_REQUEST) && !notnull($zonetype))){
 				$content = '<font color="red">Error: you did not specify
 				zone type</font>';
 				$error = 1;
 			}else{
+				if(isset($_REQUEST)){
+					$zonetype = $_REQUEST['zonetype'];
+				}
 				$zonetype=addslashes($zonetype);
-				$zone=new Zone($db,$zonename,$zonetype);
+				$zone=new Zone($db,$zonename,$zonetype,$config);
 				if(notnull($zone->error)){
 					$content = '<font color="red">Error: ' . $zone->error;
 					$error=1;
@@ -70,7 +82,11 @@ if(!isset($id) && !isset($account)){
 				}
 			}
 		}else{
-			if(notnull($account)){
+			if((isset($_REQUEST) && notnull($_REQUEST['account'])) ||
+				(!isset($_REQUEST) && notnull($account))){
+				if(isset($_REQUEST)){
+					$account = $_REQUEST['account'];
+				}
 				$account = addslashes($account);
 				if(!$user->Exists($account)){
 					$error = 1;
@@ -110,7 +126,7 @@ warning : this page can be accessed only once.
 						/>';
 						$content .= 'Recovery mail not sent.';	
 					}else{
-						if(mailer($config->contactemail,$email,
+						if(mailer($config->tousersource,$email,
 						$config->sitename . " password recovery","",$mailbody)){
 							$content .= '
 							Recorvery mail was successfully sent to your
@@ -133,7 +149,11 @@ warning : this page can be accessed only once.
 		}
 		
 	}else{
-		if(isset($id)){
+		if((isset($_REQUEST) && isset($_REQUEST['id'])) ||
+			(!isset($_REQUEST) && isset($id))){
+				if(isset($_REQUEST)){
+					$id = $_REQUEST['id'];
+				}
 				$id=addslashes($id);
 				if($user->validateIDRecovery($id)){
 					// id OK, validate
@@ -152,14 +172,23 @@ warning : this page can be accessed only once.
 					URL';
 				}
 		}else{
-			if(notnull($zonename)){
+			if((isset($_REQUEST) && notnull($_REQUEST['zonename'])) ||
+				(!isset($_REQUEST) && notnull($zonename))){
+				if(isset($_REQUEST)){
+					$zonename = $_REQUEST['zonename'];
+				}
 				$zonename = addslashes($zonename);
-				if(!notnull($zonetype)){
+				
+				if((isset($_REQUEST) && !notnull($_REQUEST['zonetype'])) || 
+					(!isset($_REQUEST) && !notnull($zonetype))){
 					$content = '<font color="red">Error: you did not specify
 					zone type</font>';
 					$error = 1;
 				}else{
-					$zonetype=addslashes($zonetype);
+					if(isset($_REQUEST)){
+						$zonetype=$_REQUEST['zonetype'];
+					}
+					$zonetype = addslashes($zonetype);
 					$zone=new Zone($db,$zonename,$zonetype);
 					if(notnull($zone->error)){
 						$content = '<font color="red">Error: ' . $zone->error;

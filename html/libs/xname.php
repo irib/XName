@@ -18,6 +18,7 @@ include 'libs/zone.php';
 include 'libs/primary.php';
 include 'libs/secondary.php';
 
+
 // **********************************************************
 // Utilities 
 
@@ -323,6 +324,11 @@ function vrfyEmail($string){
  */
 function checkDig($server,$zone){
 
+	// quite awful...
+//	if(!isset($config)){
+//		$config = new Config();
+//	}
+	
 	$result = `/bin/dig soa '$zone' @'$server'`;	
 
 	// check if status:*

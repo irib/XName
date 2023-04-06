@@ -25,14 +25,25 @@ print $html->header('Log viewer');
 
 
 // protect variables for db usage
+if(isset($_REQUEST) && isset($_REQUEST['idsession'])){
+	$idsession=$_REQUEST['idsession'];
+}
 if(isset($idsession)){
-	$idsession=addslashes($idsession);
+	$idsession = addslashes($idsession);
+}
+
+if(isset($_REQUEST) && isset($_REQUEST['login'])){
+	$login=$_REQUEST['login'];
 }
 if(isset($login)){
-	$login=addslashes($login);
+	$login = addslashes($login);
+}
+
+if(isset($_REQUEST) && isset($_REQUEST['password'])){
+	$password=$_REQUEST['password'];
 }
 if(isset($password)){
-	$password=addslashes($password);
+	$password = addslashes($password);
 }
 
 $db = new Db($config);
@@ -43,7 +54,8 @@ if(!notnull($idsession)){
 	$idsession=$user->idsession;
 }
 
-if($logout){
+if((isset($_REQUEST) && $_REQUEST['logout']) ||
+	(!isset($_REQUEST) && $logout == 1)){
 	$user->logout($idsession);
 }
 
@@ -58,6 +70,10 @@ if($user->error){
 }
 
 if($user->authenticated==1){
+	if(isset($_REQUEST)){
+		$zonename = $_REQUEST['zonename'];
+		$zonetype = $_REQUEST['zonetype'];
+	}
 	$zonename = addslashes($zonename);
 	$zonetype = addslashes($zonetype);
 	$zone = new Zone($db,$zonename,$zonetype,$config);

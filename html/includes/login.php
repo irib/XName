@@ -30,7 +30,7 @@ if($user->authenticated != 1){
 	$content = '<div align="center">
 	<a href="user.php' . $link . '" class="linkcolor">Change 
 	your preferences</a><p />
-	<a href="?logout=1">Logout</a>
+	<a href="index.php' . $link . '&logout=1">Logout</a>
 	</div>
 	';
 	

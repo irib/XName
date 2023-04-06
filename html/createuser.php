@@ -19,17 +19,32 @@
 include 'includes/header.php';
 
 
+if(isset($_REQUEST) && isset($_REQUEST['loginnew'])){
+	$loginnew=$_REQUEST['loginnew'];
+}
 if(isset($loginnew)){
-	$loginnew=addslashes($loginnew);
+	$loginnew = addslashes($loginnew);
+}
+
+if(isset($_REQUEST) && isset($_REQUEST['passwordnew'])){
+	$passwordnew=$_REQUEST['passwordnew'];
 }
 if(isset($passwordnew)){
-	$passwordnew=addslashes($passwordnew);
+	$passwordnew = addslashes($passwordnew);
+}
+
+if(isset($_REQUEST) && isset($_REQUEST['confirmpasswordnew'])){
+	$confirmpasswordnew=$_REQUEST['confirmpasswordnew'];
 }
 if(isset($confirmpasswordnew)){
-	$confirmpasswordnew=addslashes($confirmpasswordnew);
+	$confirmpasswordnew = addslashes($confirmpasswordnew);
+}
+
+if(isset($_REQUEST) && isset($_REQUEST['email'])){
+	$email=$_REQUEST['email'];
 }
 if(isset($email)){
-	$email=addslashes($email);
+	$email = addslashes($email);
 }
 
 // zone numbers
@@ -99,7 +114,8 @@ return false">' . $config->mainurl . 'disclaimer.php</a>
 	if(!notnull($email)){
 		$missing .= ' email,';
 	}
-	if($ihaveread != 1){
+	if((isset($_REQUEST) && $_REQUEST['ihaveread'] != 1) || (!isset($_REQUEST)
+	&& $ihaveread != 1)){
 		$missing .= ' I have read the disclaimer,';
 	}
 	
@@ -234,7 +250,6 @@ return false">' . $config->mainurl . 'disclaimer.php</a>
 ';
 	}
 	
-
 } // end else $loginnew not null
 
 print $html->box($title,$content);
